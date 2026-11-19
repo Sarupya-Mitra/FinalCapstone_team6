@@ -1,0 +1,7 @@
+pydantic
+fastapi
+uvicorn
+psycopg2-binary
+PyJWT
+pwdlib[argon2]
+python-multipart
