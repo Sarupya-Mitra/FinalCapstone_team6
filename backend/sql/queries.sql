@@ -7,15 +7,16 @@ SELECT v.vendor_name,
        i.invoice_date,
        i.status,
        a.decision   AS last_decision,
-       a.reviewer,
+       a.approver_name,
        a.decided_at
 FROM invoices i
 JOIN vendors v ON v.vendor_id = i.vendor_id
 LEFT JOIN LATERAL (
-    SELECT decision, reviewer, decided_at
+    SELECT ap.decision, apr.app_name AS approver_name, ap.decided_at
     FROM invoice_approvals ap
+    JOIN approvers apr ON apr.app_id = ap.approver_id
     WHERE ap.invoice_id = i.invoice_id
-    ORDER BY decided_at DESC
+    ORDER BY ap.decided_at DESC
     LIMIT 1
 ) a ON true
 ORDER BY v.vendor_name, i.invoice_date NULLS LAST;

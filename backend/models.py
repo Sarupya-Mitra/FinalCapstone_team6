@@ -1,6 +1,7 @@
 """SQLAlchemy ORM models for the invoice_processing database.
 
 Tables (per the project spec, section 03):
+  clerks and approvers (the two user roles; login via app/routers/auth.py),
   vendors, invoices, invoice_items, invoice_checks, extraction_runs,
   invoice_approvals, plus invoice_corrections for the audit trail of
   clerk edits (original AI extraction is kept in extraction_runs).
@@ -41,6 +42,43 @@ INVOICE_STATUSES = (
 
 def _in(column: str, values) -> str:
     return f"{column} IN ({', '.join(repr(v) for v in values)})"
+
+
+class Clerk(Base):
+    """Accounts-payable clerk: uploads invoices, verifies and corrects extracted data.
+
+    Column names (c_*) match the queries in app/routers/auth.py.
+    """
+
+    __tablename__ = "clerks"
+
+    c_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    c_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    c_email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    c_password: Mapped[str] = mapped_column(String(255), nullable=False)  # argon2 hash, never plain text
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    invoices: Mapped[list["Invoice"]] = relationship(back_populates="uploaded_by_clerk")
+    corrections: Mapped[list["InvoiceCorrection"]] = relationship(back_populates="clerk")
+
+
+class Approver(Base):
+    """Reviewer who approves or rejects verified invoices.
+
+    Column names (app_*) match the queries in app/routers/auth.py.
+    """
+
+    __tablename__ = "approvers"
+
+    app_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    app_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    app_email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    app_password: Mapped[str] = mapped_column(String(255), nullable=False)  # argon2 hash, never plain text
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    approvals: Mapped[list["InvoiceApproval"]] = relationship(back_populates="approver")
 
 
 class Vendor(Base):
@@ -102,13 +140,16 @@ class Invoice(Base):
     duplicate_of_invoice_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("invoices.invoice_id", ondelete="SET NULL")
     )
-    uploaded_by: Mapped[Optional[str]] = mapped_column(String(100))
+    uploaded_by_clerk_id: Mapped[int] = mapped_column(
+        ForeignKey("clerks.c_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     vendor: Mapped[Vendor] = relationship(back_populates="invoices")
+    uploaded_by_clerk: Mapped[Clerk] = relationship(back_populates="invoices")
     items: Mapped[list["InvoiceItem"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceItem.line_no"
     )
@@ -208,12 +249,15 @@ class InvoiceApproval(Base):
     invoice_id: Mapped[int] = mapped_column(
         ForeignKey("invoices.invoice_id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    reviewer: Mapped[str] = mapped_column(String(100), nullable=False)
+    approver_id: Mapped[int] = mapped_column(
+        ForeignKey("approvers.app_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     decision: Mapped[str] = mapped_column(String(10), nullable=False)
     note: Mapped[str] = mapped_column(Text, nullable=False)
     decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     invoice: Mapped[Invoice] = relationship(back_populates="approvals")
+    approver: Mapped[Approver] = relationship(back_populates="approvals")
 
 
 class InvoiceCorrection(Base):
@@ -228,7 +272,10 @@ class InvoiceCorrection(Base):
     field_name: Mapped[str] = mapped_column(String(100), nullable=False)
     old_value: Mapped[Optional[str]] = mapped_column(Text)
     new_value: Mapped[Optional[str]] = mapped_column(Text)
-    corrected_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    clerk_id: Mapped[int] = mapped_column(
+        ForeignKey("clerks.c_id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     corrected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     invoice: Mapped[Invoice] = relationship(back_populates="corrections")
+    clerk: Mapped[Clerk] = relationship(back_populates="corrections")

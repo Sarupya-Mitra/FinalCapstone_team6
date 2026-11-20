@@ -6,6 +6,7 @@ Usage (from the backend/ folder):
     python init_db.py --no-seed  # create DB + tables only
 """
 import argparse
+import os
 from datetime import date
 from decimal import Decimal as D
 
@@ -14,6 +15,8 @@ from sqlalchemy import func, select
 import models  # noqa: F401  (registers tables on Base.metadata)
 from database import DB_NAME, Base, SessionLocal, check_connection, create_database_if_missing, engine
 from models import (
+    Approver,
+    Clerk,
     ExtractionRun,
     Invoice,
     InvoiceApproval,
@@ -25,6 +28,8 @@ from models import (
 
 SEED_PROVIDER = "seed"
 SEED_MODEL = "seed-fixture"
+# Demo login password for every seeded clerk/approver. Override with SEED_USER_PASSWORD.
+SEED_PASSWORD = os.getenv("SEED_USER_PASSWORD", "Password@123")
 
 
 def _items(rows):
@@ -49,6 +54,16 @@ def _extraction(number, inv_date, rows, total, uncertain=()):
 
 
 def seed(session) -> None:
+    # ---------------- Users (clerks + approvers) ----------------
+    from pwdlib import PasswordHash
+
+    pw = PasswordHash.recommended().hash(SEED_PASSWORD)  # same argon2 hasher as app/core/security.py
+    anita = Clerk(c_name="Anita Sharma", c_email="anita.clerk@example.com", c_password=pw)
+    vikram = Clerk(c_name="Vikram Rao", c_email="vikram.clerk@example.com", c_password=pw)
+    rahul = Approver(app_name="Rahul Mehta", app_email="rahul.approver@example.com", app_password=pw)
+    priya = Approver(app_name="Priya Nair", app_email="priya.approver@example.com", app_password=pw)
+    session.add_all([anita, vikram, rahul, priya])
+
     # ---------------- Vendors ----------------
     acme = Vendor(vendor_name="Acme Office Supplies", contact_reference="ap@acme-office.example", tax_id="ACME-TX-1001")
     nimbus = Vendor(vendor_name="Nimbus Cloud Services", contact_reference="billing@nimbus-cloud.example", tax_id="NCS-TX-2002")
@@ -62,7 +77,7 @@ def seed(session) -> None:
         vendor=acme, invoice_number="INV-1001", invoice_date=date(2026, 10, 2), due_date=date(2026, 11, 1),
         subtotal=D("165.00"), tax_amount=D("16.50"), total_amount=D("181.50"),
         file_path="uploads/invoice_0001.pdf", original_filename="acme_INV-1001.pdf", file_size_bytes=48213,
-        status="approved", is_verified=True, uploaded_by="clerk.anita",
+        status="approved", is_verified=True, uploaded_by_clerk=anita,
         items=_items(rows1),
         extraction_runs=[ExtractionRun(
             extracted_json=_extraction("INV-1001", date(2026, 10, 2), rows1, "181.50"),
@@ -74,7 +89,7 @@ def seed(session) -> None:
             InvoiceCheck(check_type="invoice_total", result="pass", details="165.00 + 16.50 tax = 181.50 matches stated total."),
             InvoiceCheck(check_type="missing_field", result="pass", details="All required fields present."),
         ],
-        approvals=[InvoiceApproval(reviewer="approver.rahul", decision="approved",
+        approvals=[InvoiceApproval(approver=rahul, decision="approved",
                                    note="Matches PO-7781; goods received in full.")],
     )
 
@@ -84,7 +99,7 @@ def seed(session) -> None:
         vendor=acme, invoice_number="INV-1002", invoice_date=date(2026, 10, 15), due_date=date(2026, 11, 14),
         subtotal=D("105.00"), tax_amount=D("10.50"), total_amount=D("115.50"),
         file_path="uploads/invoice_0002.pdf", original_filename="acme_INV-1002.pdf", file_size_bytes=47102,
-        status="discrepancy", is_verified=True, uploaded_by="clerk.anita",
+        status="discrepancy", is_verified=True, uploaded_by_clerk=anita,
         items=_items(rows2),
         extraction_runs=[ExtractionRun(
             extracted_json=_extraction("INV-1002", date(2026, 10, 15), rows2, "115.50", ["line_items[0].line_total"]),
@@ -107,7 +122,7 @@ def seed(session) -> None:
         vendor=acme, invoice_number="INV-1002", invoice_date=date(2026, 10, 15), due_date=date(2026, 11, 14),
         subtotal=D("105.00"), tax_amount=D("10.50"), total_amount=D("115.50"),
         file_path="uploads/invoice_0003.pdf", original_filename="acme_INV-1002_resend.pdf", file_size_bytes=47102,
-        status="discrepancy", is_verified=False, uploaded_by="clerk.anita",
+        status="discrepancy", is_verified=False, uploaded_by_clerk=anita,
         duplicate_of_invoice_id=inv2.invoice_id,
         items=_items(rows2),
         extraction_runs=[ExtractionRun(
@@ -123,7 +138,7 @@ def seed(session) -> None:
         vendor=nimbus, invoice_number="NCS-2026-077", invoice_date=date(2026, 10, 5), due_date=date(2026, 11, 4),
         subtotal=D("900.00"), tax_amount=None, total_amount=None,
         file_path="uploads/invoice_0004.pdf", original_filename="nimbus_NCS-2026-077.pdf", file_size_bytes=51877,
-        status="discrepancy", is_verified=False, uploaded_by="clerk.anita",
+        status="discrepancy", is_verified=False, uploaded_by_clerk=anita,
         items=_items(rows4),
         extraction_runs=[ExtractionRun(
             extracted_json=_extraction("NCS-2026-077", date(2026, 10, 5), rows4, None, ["tax_amount", "extracted_total"]),
@@ -142,7 +157,7 @@ def seed(session) -> None:
         vendor=nimbus, invoice_number="NCS-2026-078", invoice_date=date(2026, 11, 3), due_date=date(2026, 12, 3),
         subtotal=D("500.00"), tax_amount=D("50.00"), total_amount=D("550.00"),
         file_path="uploads/invoice_0005.pdf", original_filename="nimbus_NCS-2026-078.pdf", file_size_bytes=50311,
-        status="pending_approval", is_verified=True, uploaded_by="clerk.anita",
+        status="pending_approval", is_verified=True, uploaded_by_clerk=anita,
         items=_items(rows5),
         extraction_runs=[ExtractionRun(
             extracted_json=_extraction("NCS-2026-078", date(2026, 11, 3), rows5, "550.00"),
@@ -162,7 +177,7 @@ def seed(session) -> None:
         vendor=blueriver, invoice_number="BRL-5531", invoice_date=date(2026, 10, 28), due_date=date(2026, 11, 27),
         subtotal=D("700.00"), tax_amount=D("70.00"), total_amount=D("770.00"),
         file_path="uploads/invoice_0006.pdf", original_filename="blueriver_BRL-5531.pdf", file_size_bytes=45520,
-        status="rejected", is_verified=True, uploaded_by="clerk.anita",
+        status="rejected", is_verified=True, uploaded_by_clerk=anita,
         items=_items(rows6),
         # AI originally read the date as 2026-08-28; kept here for traceability.
         extraction_runs=[ExtractionRun(
@@ -170,14 +185,14 @@ def seed(session) -> None:
             provider=SEED_PROVIDER, model_name=SEED_MODEL, status="success", duration_ms=2105,
             ai_summary="Invoice date is ambiguous in the document header; please verify.")],
         corrections=[InvoiceCorrection(field_name="invoice_date", old_value="2026-08-28", new_value="2026-10-28",
-                                       corrected_by="clerk.anita")],
+                                       clerk=anita)],
         checks=[
             InvoiceCheck(check_type="duplicate", result="pass", details="No other invoice BRL-5531 for this vendor."),
             InvoiceCheck(check_type="line_total", result="pass", details="All 2 line totals match quantity x unit price."),
             InvoiceCheck(check_type="invoice_total", result="pass", details="700.00 + 70.00 tax = 770.00 matches stated total."),
             InvoiceCheck(check_type="missing_field", result="pass", details="All required fields present."),
         ],
-        approvals=[InvoiceApproval(reviewer="approver.rahul", decision="rejected",
+        approvals=[InvoiceApproval(approver=rahul, decision="rejected",
                                    note="Third pallet not delivered per GRN-4410; ask vendor for revised invoice.")],
     )
 
@@ -185,7 +200,7 @@ def seed(session) -> None:
     inv7 = Invoice(
         vendor=blueriver, invoice_number=None, invoice_date=None,
         file_path="uploads/invoice_0007.pdf", original_filename="blueriver_scan_nov.pdf", file_size_bytes=812004,
-        status="uploaded", is_verified=False, uploaded_by="clerk.anita",
+        status="uploaded", is_verified=False, uploaded_by_clerk=anita,
         extraction_runs=[ExtractionRun(
             extracted_json=None, provider=SEED_PROVIDER, model_name=SEED_MODEL, status="no_text", duration_ms=95,
             error_message="PDF contains no extractable text (likely a scanned image). Manual entry required.")],
@@ -226,6 +241,9 @@ def main() -> None:
             count = session.scalar(select(func.count()).select_from(table))
             print(f"  {table.name:<20} {count} rows")
     print("Seed data inserted.")
+    print(f"Demo logins (password: {SEED_PASSWORD}):")
+    print("  clerks:    anita.clerk@example.com, vikram.clerk@example.com")
+    print("  approvers: rahul.approver@example.com, priya.approver@example.com")
 
 
 if __name__ == "__main__":
