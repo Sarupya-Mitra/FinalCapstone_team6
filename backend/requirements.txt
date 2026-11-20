@@ -1,3 +1,10 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+python-multipart
 SQLAlchemy>=2.0
 psycopg2-binary>=2.9.10
 python-dotenv>=1.0
+PyJWT
+pwdlib[argon2]
