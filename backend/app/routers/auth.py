@@ -20,7 +20,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-            SELECT c_id,c_email,c_password
+            SELECT c_id,c_name,c_email,c_password,is_active
             From clerks
             where c_email=%s
             """,(form_data.username,))
@@ -29,7 +29,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
             role="clerk"
             if not user:
                 cursor.execute("""
-                SELECT app_id,app_email,app_password
+                SELECT app_id,app_name,app_email,app_password,is_active
                 From approvers
                 where app_email=%s
                 """,(form_data.username,))
@@ -45,10 +45,10 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
             # Assuming the user table has all the following columns
             user_id = user[0]
-            email = user[1]
-            stored_password = user[2]
-            # role = user[3]
-            # is_active = user[4]
+            name = user[1]
+            email = user[2]
+            stored_password = user[3]
+            is_active = user[4]
 
             if not (verify_password(form_data.password,stored_password)):
                 raise HTTPException(
@@ -56,11 +56,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
                     detail="Incorrect email or password"
                 )
 
-            # if not is_active:
-            #     raise HTTPException(
-            #         status_code=403,
-            #         detail="Inactive user"
-            #     )
+            if not is_active:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Inactive user"
+                )
             token = create_access_token(user_id,role)
 
             return {
