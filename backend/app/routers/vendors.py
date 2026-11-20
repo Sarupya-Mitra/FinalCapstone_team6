@@ -10,7 +10,7 @@ router = APIRouter(
     tags=['Vendors']
 )
 
-@router.get("/vendors",response_model=list[VendorResponse])
+@router.get("/",response_model=list[VendorResponse])
 def get_all_vendors(
         current_user  : dict = Depends(get_current_user),
 ):
@@ -35,7 +35,38 @@ def get_all_vendors(
     finally:
         conn.close()
 
-@router.post("/vendors",response_model=VendorResponse)
+@router.get("/{id}",response_model=VendorResponse)
+def get_vendor(
+        id : int,
+        current_user : dict = Depends(get_current_user),
+):
+    conn = get_connection_db()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+            Select * from vendors where vendor_id=%s
+            """,id)
+
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="Vendor not found"
+            )
+        vendor = {
+            "vendor_id": row[0],
+            "vendor_name": row[1],
+            "contact_reference": row[2],
+            "tax_id": row[3],
+            "active": row[4],
+            "created_at": row[5],
+            "updated_at": row[6]
+        }
+        return vendor
+    finally:
+        conn.close()
+
+@router.post("/",response_model=VendorResponse)
 def create_vendor(
         vendor: VendorCreate ,
         current_user :dict = Depends(require_role("clerk")),
@@ -92,7 +123,7 @@ def create_vendor(
     finally:
         conn.close()
 
-@router.put("/vendors/{id}",response_model=VendorResponse)
+@router.put("/{id}",response_model=VendorResponse)
 def update_vendor(
         id:int,
         vendor: VendorUpdate ,

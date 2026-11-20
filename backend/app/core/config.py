@@ -2,6 +2,13 @@ from pydantic_settings import BaseSettings,SettingsConfigDict
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# Invoice storage directory
+UPLOAD_DIR = BASE_DIR / "uploads" / "invoices"
+# Max upload size = 10MB
+MAX_FILE_SIZE = 10 * 1024 * 1024
+# Only .pdf allowed
+ALLOWED_EXTENSIONS = {".pdf"}
+
 class Settings(BaseSettings):
     # DATABASE
     DB_HOST: str
