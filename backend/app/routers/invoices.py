@@ -7,6 +7,7 @@ import fitz
 import time,json
 from decimal import Decimal
 from psycopg2 import IntegrityError
+from psycopg2.errors import UniqueViolation
 
 from app.schemas.invoice import (InvoiceResponse,InvoiceSubmit,InvoiceExtractionResult,InvoiceReviewResponse,
                                  InvoiceCorrectionSubmit)
@@ -14,6 +15,8 @@ from app.db.database import get_connection_db
 from app.routers.auth import require_role
 from app.core.config import UPLOAD_DIR,MAX_FILE_SIZE,ALLOWED_EXTENSIONS,BASE_DIR
 from app.services.pdf_storage import compress_pdf, upload_pdf, load_pdf
+from agent import (your_ai_agent, review_invoice_with_ai, AIAgentError,
+                   AI_PROVIDER, AI_MODEL)
 
 # invoices.file_path value for PDFs stored in the invoice_files table
 DB_FILE_PREFIX = "db://invoice_files/"
@@ -503,18 +506,8 @@ def extract_invoice(
             # STEP 5: AI AGENT INTEGRATION
             # ----------------------------------
 
-            # TODO:
-            # Pass extracted_text to your teammate's AI agent.
-            #
-            # The AI agent should:
-            # 1. Read the extracted PDF text.
-            # 2. Identify invoice information.
-            # 3. Extract invoice line items.
-            # 4. Return structured JSON.
-            #
-            # Expected output:
-            #
-            # ai_result = {
+            # The agent (backend/agent) returns:
+            # {
             #     "invoice_number": "INV-001",
             #     "invoice_date": "2026-11-15",
             #     "due_date": "2026-12-15",
@@ -524,51 +517,37 @@ def extract_invoice(
             #     "total_amount": 1100.00,
             #     "items": [...]
             # }
-            # TODO: Uncomment when AI agent is ready.
+            # If the model is unavailable, the invoice is preserved and the
+            # failed run is logged so the clerk can proceed manually.
 
-            # ai_result = your_ai_agent(extracted_text)
+            try:
+                ai_result = your_ai_agent(extracted_text)
+            except AIAgentError as e:
+                insert_extraction_run(
+                    cursor=cursor,
+                    invoice_id=invoice_id,
+                    extracted_json=None,
+                    status=e.run_status,
+                    error_message=str(e),
+                    provider=AI_PROVIDER,
+                    model_name=AI_MODEL,
+                    duration_ms=int((time.time() - start_time) * 1000)
+                )
 
-            sample_ai_result = {
-                "invoice_number": "INV-2026-001",
-                "invoice_date": "2026-11-15",
-                "due_date": "2026-12-15",
-                "currency": "USD",
+                conn.commit()
 
-                "subtotal": 1000.00,
-                "tax_amount": 100.00,
-                "total_amount": 1100.00,
-
-                "items": [
-                    {
-                        "line_no": 1,
-                        "item_name": "Dell Latitude 5450 Laptop",
-                        "quantity": 2,
-                        "unit_price": 400.00,
-                        "line_total": 800.00
-                    },
-                    {
-                        "line_no": 2,
-                        "item_name": "Wireless Keyboard and Mouse Combo",
-                        "quantity": 2,
-                        "unit_price": 50.00,
-                        "line_total": 100.00
-                    },
-                    {
-                        "line_no": 3,
-                        "item_name": "Laptop Carrying Bag",
-                        "quantity": 2,
-                        "unit_price": 50.00,
-                        "line_total": 100.00
-                    }
-                ]
-            }
+                return {
+                    "message": f"AI extraction unavailable: {e}. "
+                               "The invoice is preserved for manual entry.",
+                    "invoice_id": invoice_id,
+                    "status": e.run_status
+                }
 
             ## ----------------------------------
             ## STEP 6: VALIDATE AI OUTPUT
             ## ----------------------------------
 
-            # validated_result = validate_ai_output(ai_result)
-            validated_result = validate_ai_output(sample_ai_result)
+            validated_result = validate_ai_output(ai_result)
 
             # ----------------------------------
             # STEP 7: UPDATE INVOICES TABLE
@@ -605,8 +584,8 @@ def extract_invoice(
                 invoice_id=invoice_id,
                 extracted_json=extracted_json,
                 status="success",
-                provider="your_provider",
-                model_name="your_model",
+                provider=AI_PROVIDER,
+                model_name=AI_MODEL,
                 duration_ms=duration_ms
             )
 
@@ -1354,9 +1333,9 @@ def run_deterministic_checks(invoice, items):
 
 def run_ai_invoice_checks(invoice, items):
     """
-    Placeholder for teammate's AI invoice validation agent.
+    Advisory AI review of the invoice (backend/agent).
 
-    Expected return format:
+    Return format:
 
     [
         {
@@ -1367,17 +1346,16 @@ def run_ai_invoice_checks(invoice, items):
         ...
     ]
 
-    The actual AI integration must be implemented
-    before invoices can be submitted.
+    AI findings are advisory ("fail" is downgraded to "warning").
+    If the model is unavailable, no AI checks are added so that
+    submission still works on the deterministic checks alone.
     """
 
-    ## TODO: Comment out the following line when AI integration is finished
-    return []
-
-    raise HTTPException(
-        status_code=503,
-        detail="AI invoice validation service is not configured yet"
-    )
+    try:
+        return review_invoice_with_ai(invoice, items)
+    except AIAgentError as e:
+        print(f"AI invoice checks skipped ({e.run_status}): {e}")
+        return []
 
 
 @router.post("/{invoice_id}/submit")
