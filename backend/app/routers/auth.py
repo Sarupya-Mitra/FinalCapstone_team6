@@ -36,6 +36,15 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
                 user = cursor.fetchone()
                 role="approver"
+            if not user:
+                cursor.execute("""
+                SELECT a_id,a_name,a_email,a_password,is_active
+                From auditors
+                where a_email=%s
+                """, (form_data.username,))
+
+                user = cursor.fetchone()
+                role = "auditor"
 
             if not user:
                 raise HTTPException(
@@ -91,7 +100,7 @@ def get_current_user(
         )
         user_id = int(payload.get("sub"))
         role = payload.get("role")
-        if role not in ["clerk", "approver"]:
+        if role not in ["clerk", "approver","auditor"]:
             raise credentials_exception
 
     except (jwt.InvalidTokenError,TypeError,ValueError):
@@ -112,6 +121,13 @@ def get_current_user(
                                SELECT app_id,app_name,app_email
                                from approvers 
                                where app_id=%s    
+                               """, (user_id,))
+            # user = cursor.fetchone()
+            elif role == "auditor":
+                cursor.execute("""
+                               SELECT a_id,a_name,a_email
+                               from auditors 
+                               where a_id=%s    
                                """, (user_id,))
             user = cursor.fetchone()
             if not user:
