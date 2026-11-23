@@ -38,9 +38,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
                 role="approver"
             if not user:
                 cursor.execute("""
-                SELECT a_id,a_name,a_email,a_password,is_active
+                SELECT aud_id,aud_name,aud_email,aud_password,is_active
                 From auditors
-                where a_email=%s
+                where aud_email=%s
                 """, (form_data.username,))
 
                 user = cursor.fetchone()
@@ -125,9 +125,9 @@ def get_current_user(
             # user = cursor.fetchone()
             elif role == "auditor":
                 cursor.execute("""
-                               SELECT a_id,a_name,a_email
+                               SELECT aud_id,aud_name,aud_email
                                from auditors 
-                               where a_id=%s    
+                               where aud_id=%s    
                                """, (user_id,))
             user = cursor.fetchone()
             if not user:
