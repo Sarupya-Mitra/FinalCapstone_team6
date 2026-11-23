@@ -13,6 +13,10 @@ from app.schemas.invoice import (InvoiceResponse,InvoiceSubmit,InvoiceExtraction
 from app.db.database import get_connection_db
 from app.routers.auth import require_role
 from app.core.config import UPLOAD_DIR,MAX_FILE_SIZE,ALLOWED_EXTENSIONS,BASE_DIR
+from app.services.pdf_storage import compress_pdf, upload_pdf, load_pdf
+
+# invoices.file_path value for PDFs stored in the invoice_files table
+DB_FILE_PREFIX = "db://invoice_files/"
 
 router = APIRouter(
     prefix="/invoices",
@@ -143,7 +147,6 @@ def upload_invoice(
         file: UploadFile = File(...),
         current_user: dict = Depends(require_role("clerk"))
 ):
-    file_path = None
     try:
         # Validate filename
         original_filename = Path(file.filename or "").name
@@ -161,45 +164,30 @@ def upload_invoice(
                 detail="Only PDF files are allowed"
             )
 
-        # Generating an unique filename
-        unique_filename = f"{uuid.uuid4()}.pdf"
-
-        # Create upload directory if it doesn't exist
-        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        file_path = UPLOAD_DIR / unique_filename
-
-        # Read and validate file contents
-        file_size = 0
-        with open(file_path,"wb") as destination:
-            while True:
-                chunk = file.file.read(1024*1024)
-                if not chunk:
-                    break
-                file_size += len(chunk)
-                if file_size>MAX_FILE_SIZE:
-                    raise HTTPException(
-                        status_code=413,
-                        detail="File size exceeds the limit"
-                    )
-                if file_size <= 5 and not b"%PDF-".startswith(chunk[:file_size]):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Invalid PDF file"
-                    )
-                destination.write(chunk)
+        # Read the upload into memory, refusing anything over MAX_FILE_SIZE
+        # (the raw upload limit; the stored, compressed copy must be <= 1 MB).
+        raw = file.file.read(MAX_FILE_SIZE + 1)
+        if len(raw) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail="File size exceeds the limit"
+            )
         # Validate file is not empty
-        if file_size == 0:
+        if not raw:
             raise HTTPException(
                 status_code=400,
                 detail = "Uploaded File is empty"
             )
         # Verify PDF signature
-        with open(file_path, "rb") as uploaded_file:
-            if uploaded_file.read(5) != b"%PDF-":
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid PDF file"
-                )
+        if not raw.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid PDF file"
+            )
+
+        # Compress with PyMuPDF; raises 413 if it can't get under 1 MB
+        compressed = compress_pdf(raw)
+
         clerk_id = current_user["id"]
         conn = get_connection_db()
         try:
@@ -233,9 +221,10 @@ def upload_invoice(
                         updated_at""",
                     (
                         vendor_id,
-                        file_path.relative_to(UPLOAD_DIR.parents[1]).as_posix(),
+                        # PDF lives in invoice_files; file_path is just a reference
+                        f"{DB_FILE_PREFIX}{uuid.uuid4()}.pdf",
                         original_filename,
-                        file_size,
+                        compressed.stored_size,
                         clerk_id
                     )
                 )
@@ -247,6 +236,9 @@ def upload_invoice(
 
                 invoice = dict(zip(columns, row))
 
+                # Store the compressed PDF in the same transaction
+                upload_pdf(cursor, invoice["invoice_id"], original_filename, compressed)
+
                 conn.commit()
 
                 return invoice
@@ -255,21 +247,21 @@ def upload_invoice(
             raise
         finally:
             conn.close()
-    except Exception:
-        # Delete saved file if anything goes wrong
-        if file_path is not None and file_path.exists():
-            file_path.unlink()
-        raise
     finally:
         file.file.close()
 
 ###########################################################
 # Extracting the pdf
 ###########################################################
-def extract_text_from_pdf(file_path: Path) -> str:
+def extract_text_from_pdf(source: Path | bytes) -> str:
 
     try:
-        with fitz.open(file_path) as pdf:
+        pdf_doc = (
+            fitz.open(stream=source, filetype="pdf")
+            if isinstance(source, (bytes, bytearray))
+            else fitz.open(source)
+        )
+        with pdf_doc as pdf:
 
             extracted_text = []
 
@@ -444,29 +436,34 @@ def extract_invoice(
                 )
 
             # ----------------------------------
-            # STEP 3: Locate the stored PDF
+            # STEP 3: Load the stored PDF
+            # (invoice_files in the DB; older invoices may still be on disk)
             # ----------------------------------
 
-            file_path = (BASE_DIR / stored_file_path).resolve()
+            pdf_source = load_pdf(cursor, invoice_id)
 
-            # Prevent paths outside the upload directory
-            if not file_path.is_relative_to(UPLOAD_DIR.resolve()):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid invoice file path"
-                )
+            if pdf_source is None:
+                file_path = (BASE_DIR / stored_file_path).resolve()
 
-            if not file_path.is_file():
-                raise HTTPException(
-                    status_code=404,
-                    detail="Invoice PDF file not found"
-                )
+                # Prevent paths outside the upload directory
+                if not file_path.is_relative_to(UPLOAD_DIR.resolve()):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid invoice file path"
+                    )
+
+                if not file_path.is_file():
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Invoice PDF file not found"
+                    )
+                pdf_source = file_path
 
             # ----------------------------------
             # STEP 4: Extract text using PyMuPDF
             # ----------------------------------
 
-            extracted_text = extract_text_from_pdf(file_path)
+            extracted_text = extract_text_from_pdf(pdf_source)
 
             duration_ms = int(
                 (time.time() - start_time) * 1000

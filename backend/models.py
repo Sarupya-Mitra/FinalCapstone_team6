@@ -1,9 +1,11 @@
 """SQLAlchemy ORM models for the invoice_processing database.
 
 Tables (per the project spec, section 03):
-  clerks and approvers (the two user roles; login via app/routers/auth.py),
+  clerks and approvers (user roles; login via app/routers/auth.py),
+  auditors (read-only role, no APIs yet),
   vendors, invoices, invoice_items, invoice_checks, extraction_runs,
-  invoice_approvals, plus invoice_corrections for the audit trail of
+  invoice_approvals, invoice_files (compressed PDF bytes, <= 1 MB),
+  plus invoice_corrections for the audit trail of
   clerk edits (original AI extraction is kept in extraction_runs).
 """
 from datetime import date, datetime
@@ -19,6 +21,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -79,6 +82,24 @@ class Approver(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     approvals: Mapped[list["InvoiceApproval"]] = relationship(back_populates="approver")
+
+
+class Auditor(Base):
+    """Read-only reviewer: views processed invoices and traces the original
+    extraction, clerk corrections and approver decisions (project spec, auditor flow).
+
+    Column names (aud_*) follow the same pattern as clerks (c_*) and approvers (app_*).
+    Not wired into app/routers/auth.py yet.
+    """
+
+    __tablename__ = "auditors"
+
+    aud_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    aud_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    aud_email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    aud_password: Mapped[str] = mapped_column(String(255), nullable=False)  # argon2 hash, never plain text
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Vendor(Base):
@@ -161,6 +182,47 @@ class Invoice(Base):
     corrections: Mapped[list["InvoiceCorrection"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan"
     )
+    pdf_file: Mapped[Optional["InvoiceFile"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan", uselist=False
+    )
+
+
+# Stored PDFs must be at most 1 MB after PyMuPDF compression.
+MAX_STORED_PDF_BYTES = 1024 * 1024
+
+
+class InvoiceFile(Base):
+    """The uploaded invoice PDF itself, compressed with PyMuPDF and stored in the DB.
+
+    One row per invoice. file_data holds the compressed bytes (<= 1 MB);
+    original_size_bytes records what the clerk actually uploaded.
+    """
+
+    __tablename__ = "invoice_files"
+    __table_args__ = (
+        CheckConstraint(
+            f"stored_size_bytes > 0 AND stored_size_bytes <= {MAX_STORED_PDF_BYTES}",
+            name="ck_invoice_files_size",
+        ),
+        CheckConstraint("octet_length(file_data) = stored_size_bytes", name="ck_invoice_files_len"),
+        CheckConstraint("original_size_bytes > 0", name="ck_invoice_files_orig_size"),
+        CheckConstraint("mime_type = 'application/pdf'", name="ck_invoice_files_mime"),
+    )
+
+    file_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(
+        ForeignKey("invoices.invoice_id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    file_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)  # BYTEA
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(50), nullable=False, server_default="application/pdf")
+    original_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    stored_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    page_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)  # hash of the original upload
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    invoice: Mapped[Invoice] = relationship(back_populates="pdf_file")
 
 
 class InvoiceItem(Base):

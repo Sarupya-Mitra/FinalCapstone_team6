@@ -16,12 +16,14 @@ import models  # noqa: F401  (registers tables on Base.metadata)
 from database import DB_NAME, Base, SessionLocal, check_connection, create_database_if_missing, engine
 from models import (
     Approver,
+    Auditor,
     Clerk,
     ExtractionRun,
     Invoice,
     InvoiceApproval,
     InvoiceCheck,
     InvoiceCorrection,
+    InvoiceFile,
     InvoiceItem,
     Vendor,
 )
@@ -54,7 +56,7 @@ def _extraction(number, inv_date, rows, total, uncertain=()):
 
 
 def seed(session) -> None:
-    # ---------------- Users (clerks + approvers) ----------------
+    # ---------------- Users (clerks + approvers + auditors) ----------------
     from pwdlib import PasswordHash
 
     pw = PasswordHash.recommended().hash(SEED_PASSWORD)  # same argon2 hasher as app/core/security.py
@@ -62,7 +64,8 @@ def seed(session) -> None:
     vikram = Clerk(c_name="Vikram Rao", c_email="vikram.clerk@example.com", c_password=pw)
     rahul = Approver(app_name="Rahul Mehta", app_email="rahul.approver@example.com", app_password=pw)
     priya = Approver(app_name="Priya Nair", app_email="priya.approver@example.com", app_password=pw)
-    session.add_all([anita, vikram, rahul, priya])
+    meera = Auditor(aud_name="Meera Iyer", aud_email="meera.auditor@example.com", aud_password=pw)
+    session.add_all([anita, vikram, rahul, priya, meera])
 
     # ---------------- Vendors ----------------
     acme = Vendor(vendor_name="Acme Office Supplies", contact_reference="ap@acme-office.example", tax_id="ACME-TX-1001")
@@ -244,6 +247,7 @@ def main() -> None:
     print(f"Demo logins (password: {SEED_PASSWORD}):")
     print("  clerks:    anita.clerk@example.com, vikram.clerk@example.com")
     print("  approvers: rahul.approver@example.com, priya.approver@example.com")
+    print("  auditors:  meera.auditor@example.com")
 
 
 if __name__ == "__main__":

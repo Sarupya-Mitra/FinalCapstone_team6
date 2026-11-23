@@ -52,7 +52,7 @@ Expected output:
 ```
 Created database 'invoice_processing'.
 Connected: PostgreSQL 16.x
-Tables ready: extraction_runs, invoice_approvals, invoice_checks, invoice_corrections, invoice_items, invoices, vendors
+Tables ready: approvers, auditors, clerks, extraction_runs, invoice_approvals, invoice_checks, invoice_corrections, invoice_files, invoice_items, invoices, vendors
   vendors              3 rows
   invoices             7 rows
   ...
@@ -88,11 +88,14 @@ vendors 1───* invoices 1───* invoice_items
                   │  1───* extraction_runs      (raw AI output, never overwritten)
                   │  1───* invoice_corrections  (clerk edits: old → new value)
                   │  1───* invoice_approvals    (human decisions, append-only)
+                  │  1───1 invoice_files        (compressed PDF bytes, <= 1 MB)
                   └── duplicate_of_invoice_id → invoices (self-reference for flagged duplicates)
 ```
 
 | Table | Purpose |
 |---|---|
+| `clerks` / `approvers` | Login accounts for the two active roles (argon2-hashed passwords). |
+| `auditors` | Login accounts for the read-only auditor role (trace extraction, corrections and decisions). No API endpoints use it yet. |
 | `vendors` | Vendor master records: name (unique), contact reference, tax id and an active flag. |
 | `invoices` | One row per uploaded PDF. Stores the source file reference (`file_path`, `original_filename`, `file_size_bytes`) separately from the current verified fields (number, dates, subtotal, tax, total). Also stores `status` and `is_verified`. |
 | `invoice_items` | Line items. `line_total` is the amount printed on the document. The app recalculates `quantity × unit_price` itself. |
@@ -100,6 +103,7 @@ vendors 1───* invoices 1───* invoice_items
 | `extraction_runs` | Each AI extraction attempt: the JSON it returned, provider, model, status (`success`/`partial`/`failed`/`no_text`/`timeout`/`rate_limited`), any error and how long it took. |
 | `invoice_corrections` | Audit trail of clerk corrections. The original AI value stays in `extraction_runs`. |
 | `invoice_approvals` | Approver decisions (`approved`/`rejected`), each with a required note. |
+| `invoice_files` | The uploaded PDF itself, compressed with PyMuPDF and stored as `BYTEA`. A CHECK constraint caps it at 1 MB. |
 
 Constraints the database enforces:
 
