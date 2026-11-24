@@ -1565,10 +1565,10 @@ def submit_invoice(
                 for check in all_checks
             )
 
-            if has_failures:
-                new_status = "discrepancy"
-            else:
-                new_status = "pending_approval"
+            # if has_failures:
+            #     new_status = "discrepancy"
+            # else:
+            new_status = "pending_approval"
 
             # -----------------------------------------
             # STEP 10: Update invoice status
