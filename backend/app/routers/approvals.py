@@ -51,7 +51,7 @@ def get_pending_invoices(
                     updated_at
                 FROM invoices
                 WHERE status = 'pending_approval'
-                AND duplicate_of_invoice_id IS NULL
+                
                 ORDER BY created_at ASC
                 LIMIT %s OFFSET %s
                 """,

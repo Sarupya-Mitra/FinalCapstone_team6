@@ -413,7 +413,9 @@ def extract_invoice(
                 SELECT
                     invoice_id,
                     file_path,
-                    status
+                    status,
+                    vendor_id,
+                    uploaded_by_clerk_id
                 FROM invoices
                 WHERE invoice_id = %s
                 """,
@@ -427,6 +429,18 @@ def extract_invoice(
                 )
             stored_file_path = invoice[1]
             invoice_status = invoice[2]
+            vendor_id = invoice[3]
+            uploaded_by_clerk_id = invoice[4]
+
+            # ----------------------------------
+            # STEP 1.1: Verify invoice ownership
+            # ----------------------------------
+
+            if uploaded_by_clerk_id != current_user["id"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized to extract this invoice"
+                )
 
             # ----------------------------------
             # STEP 2: Check invoice status
@@ -550,6 +564,47 @@ def extract_invoice(
             validated_result = validate_ai_output(ai_result)
 
             # ----------------------------------
+            # STEP 6.1: CHECK FOR DUPLICATE INVOICE
+            # ----------------------------------
+
+            original_invoice_id = None
+
+            if validated_result.invoice_number:
+
+                cursor.execute(
+                    """
+                    SELECT invoice_id
+                    FROM invoices
+                    WHERE vendor_id = %s
+                      AND invoice_number = %s
+                      AND duplicate_of_invoice_id IS NULL
+                      AND invoice_id != %s
+                    LIMIT 1
+                    """,
+                    (
+                        vendor_id,
+                        validated_result.invoice_number,
+                        invoice_id
+                    )
+                )
+
+                existing_invoice = cursor.fetchone()
+
+                if existing_invoice:
+                    original_invoice_id = existing_invoice[0]
+
+                # Link to original invoice if duplicate.
+                # Otherwise, keep this invoice as an original.
+                cursor.execute(
+                    """
+                    UPDATE invoices
+                    SET duplicate_of_invoice_id = %s
+                    WHERE invoice_id = %s
+                    """,
+                    (original_invoice_id, invoice_id)
+                )
+
+            # ----------------------------------
             # STEP 7: UPDATE INVOICES TABLE
             # ----------------------------------
 
@@ -592,7 +647,11 @@ def extract_invoice(
             conn.commit()
 
             return {
-                "message": "Invoice extracted successfully",
+                "message": (
+                        "Duplicate invoice detected and linked to original invoice"
+                        if original_invoice_id
+                        else "Invoice extracted successfully"
+                ),
                 "invoice_id": invoice_id,
                 "status": "success",
                 "extracted_data": extracted_json
