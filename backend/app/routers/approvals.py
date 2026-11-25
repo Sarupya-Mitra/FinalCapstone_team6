@@ -1,5 +1,13 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from pathlib import Path
+
+UPLOAD_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "uploads"
+    / "invoices"
+)
 
 from app.db.database import get_connection_db
 from app.routers.auth import require_role
@@ -7,6 +15,7 @@ from app.schemas.approval import (
     ApprovalDecisionSubmit,
     ApprovalResponse
 )
+
 
 router = APIRouter(
     prefix="/approvals",
@@ -556,6 +565,72 @@ def decide_invoice(
     except Exception:
         conn.rollback()
         raise
+
+    finally:
+        conn.close()
+
+def load_original_pdf(cursor, invoice_id: int) -> tuple[bytes, str] | None:
+
+    cursor.execute(
+        """
+        SELECT original_file_location
+        FROM invoice_original_files
+        WHERE invoice_id = %s
+        """,
+        (invoice_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    relative_path = row[0]
+
+    # Resolve relative to backend directory
+    backend_dir = Path(__file__).resolve().parents[2]
+
+    file_path = (backend_dir / relative_path).resolve()
+
+    # Ensure the resolved path stays inside the uploads directory
+    if not file_path.is_relative_to(UPLOAD_DIR.resolve()):
+        raise ValueError("Invalid original file location")
+
+    if not file_path.is_file():
+        return None
+
+    return file_path.read_bytes(), file_path.name
+
+from fastapi.responses import Response
+
+@router.get("/{invoice_id}/original")
+def download_original_invoice(
+    invoice_id: int,
+    current_user: dict = Depends(require_role("approver"))
+):
+    conn = get_connection_db()
+
+    try:
+        with conn.cursor() as cursor:
+            result = load_original_pdf(cursor, invoice_id)
+
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Original invoice PDF not found"
+            )
+
+        pdf_bytes, filename = result
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition":
+                    f'attachment; filename="{filename}"' # For directly downloading the pdf
+                    # f'inline; filename="{filename}"'   # For opening the pdf in new tab
+            }
+        )
 
     finally:
         conn.close()
