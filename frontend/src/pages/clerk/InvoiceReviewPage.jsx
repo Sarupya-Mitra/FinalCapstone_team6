@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { invoicesApi } from '../../api/endpoints'
-import { AiSummary, ChecksList, InvoiceSummary, ItemsTable, VendorName, checkCounts, useVendors } from '../../components/invoice'
+import { AiSummary, ChecksList, InvoiceSummary, ItemsTable, VendorName, checkCounts, useVendors, ViewPdfButton } from '../../components/invoice'
 import {
   Alert,
   Button,
@@ -37,6 +37,10 @@ export default function InvoiceReviewPage() {
   const [actionError, setActionError] = useState(null)
   const [submitResult, setSubmitResult] = useState(null)
   const [confirmSubmit, setConfirmSubmit] = useState(false)
+  // Set when an extraction attempt in this session failed (incl. network/500 errors
+  // that never got recorded as a run). The last recorded run is checked as well.
+  const [extractFailed, setExtractFailed] = useState(() => isFailedExtraction(location.state?.extractResult))
+  const [manualEntry, setManualEntry] = useState(false)
 
   // Drop router state so a refresh doesn't show the upload notice again.
   useEffect(() => {
@@ -45,7 +49,10 @@ export default function InvoiceReviewPage() {
 
   const invoice = review.data?.invoice
   const items = review.data?.items
-  const editable = invoice?.status === 'extracted'
+  const manualMode = invoice?.status === 'uploaded' && manualEntry
+  const editable = invoice?.status === 'extracted' || manualMode
+  const canEnterManually =
+    invoice?.status === 'uploaded' && (extractFailed || isFailedExtraction(review.data?.extraction))
 
   // Reset the form whenever fresh data arrives from the server.
   useEffect(() => {
@@ -68,9 +75,11 @@ export default function InvoiceReviewPage() {
     try {
       const res = await invoicesApi.extract(id)
       setNotice(extractNotice(res))
+      setExtractFailed(isFailedExtraction(res))
       await review.reload()
     } catch (err) {
       setActionError(err.message)
+      setExtractFailed(true)
     } finally {
       setBusy(null)
     }
@@ -107,7 +116,8 @@ export default function InvoiceReviewPage() {
     setBusy('submit')
     setNotice(null)
     try {
-      if (dirty && !(await save())) return
+      // Manually entered data has never been saved, so always save it first.
+      if ((dirty || manualMode) && !(await save())) return
       const res = await invoicesApi.submit(id)
       setSubmitResult(res)
       await review.reload()
@@ -143,9 +153,12 @@ export default function InvoiceReviewPage() {
         }
         title={invoice.invoice_number || invoice.original_filename}
         actions={
-          <ButtonLink to="/clerk" variant="on-dark">
-            ‹ All invoices
-          </ButtonLink>
+          <div className="flex flex-wrap items-start gap-3">
+            <ViewPdfButton variant="on-dark" load={() => invoicesApi.pdf(invoice.invoice_id)} />
+            <ButtonLink to="/clerk" variant="on-dark">
+              ‹ All invoices
+            </ButtonLink>
+          </div>
         }
       >
         {vendorName} · {stepDescription(invoice.status)}
@@ -176,7 +189,7 @@ export default function InvoiceReviewPage() {
         </div>
 
         {/* ---------- Step 1: extraction ---------- */}
-        {invoice.status === 'uploaded' && (
+        {invoice.status === 'uploaded' && !manualMode && (
           <Section>
             <div className="grid lg:grid-cols-[1fr_360px] gap-8">
               <Card>
@@ -194,6 +207,30 @@ export default function InvoiceReviewPage() {
                 <InvoiceSummary invoice={invoice} vendorName={vendorName} />
               </div>
             </div>
+            {canEnterManually && (
+              <Card className="mt-8">
+                <p className="label-upper text-error">AI extraction failed</p>
+                <h2 className="mt-2 text-display-sm">Enter the invoice details manually</h2>
+                <p className="mt-3 text-body-md text-body max-w-xl">
+                  Open the PDF and type in the invoice number, dates, amounts and line items yourself. You can still
+                  retry the AI extraction above instead.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button
+                    variant="secondary"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setNotice(null)
+                      setActionError(null)
+                      setManualEntry(true)
+                    }}
+                  >
+                    Enter details manually
+                  </Button>
+                  <ViewPdfButton variant="ghost" load={() => invoicesApi.pdf(invoice.invoice_id)} />
+                </div>
+              </Card>
+            )}
             {review.data.extraction && (
               <div className="mt-8">
                 <p className="label-upper text-muted mb-3">Last attempt</p>
@@ -206,10 +243,14 @@ export default function InvoiceReviewPage() {
         {/* ---------- Step 2: review & correct ---------- */}
         {editable && form && (
           <Section
-            title="Review extracted data"
-            description="Compare with the PDF and correct anything the AI got wrong. Every change is recorded in the audit trail."
+            title={manualMode ? 'Enter invoice details' : 'Review extracted data'}
+            description={
+              manualMode
+                ? 'Copy the details from the PDF (use View PDF at the top). Every value is recorded in the audit trail.'
+                : 'Compare with the PDF and correct anything the AI got wrong. Every change is recorded in the audit trail.'
+            }
           >
-            {review.data.extraction && (
+            {!manualMode && review.data.extraction && (
               <div className="mb-10">
                 <AiSummary extraction={review.data.extraction} />
               </div>
@@ -224,16 +265,17 @@ export default function InvoiceReviewPage() {
               </p>
               <Button
                 variant="secondary"
-                disabled={!dirty || busy !== null}
+                disabled={(!dirty && !manualMode) || busy !== null}
                 onClick={() => {
                   const f = toForm(invoice, items)
                   setForm(f)
                   setShowErrors(false)
+                  if (manualMode) setManualEntry(false)
                 }}
               >
-                Discard
+                {manualMode ? 'Cancel' : 'Discard'}
               </Button>
-              <Button variant="secondary" onClick={onSave} disabled={!dirty || busy !== null} loading={busy === 'save'}>
+              <Button variant="secondary" onClick={onSave} disabled={(!dirty && !manualMode) || busy !== null} loading={busy === 'save'}>
                 Save<span className="hidden sm:inline">&nbsp;corrections</span>
               </Button>
               <Button onClick={() => setConfirmSubmit(true)} disabled={busy !== null} loading={busy === 'submit'}>
@@ -277,7 +319,7 @@ export default function InvoiceReviewPage() {
             <Button variant="secondary" onClick={() => setConfirmSubmit(false)}>
               Cancel
             </Button>
-            <Button onClick={onSubmit}>{dirty ? 'Save & submit' : 'Submit'}</Button>
+            <Button onClick={onSubmit}>{dirty || manualMode ? 'Save & submit' : 'Submit'}</Button>
           </>
         }
       >
@@ -285,10 +327,14 @@ export default function InvoiceReviewPage() {
           The backend runs the validation checks (duplicates, line totals, invoice total, required fields) and sends
           the invoice to an approver. You can't edit it after this.
         </p>
-        {dirty && <p className="mt-3 text-body-sm text-muted">Your unsaved corrections will be saved first.</p>}
+        {(dirty || manualMode) && <p className="mt-3 text-body-sm text-muted">Your unsaved changes will be saved first.</p>}
       </Modal>
     </>
   )
+}
+
+function isFailedExtraction(res) {
+  return Boolean(res && res.status && res.status !== 'success')
 }
 
 function extractNotice(res) {

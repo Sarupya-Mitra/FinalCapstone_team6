@@ -9,6 +9,7 @@ import {
   VendorName,
   checkCounts,
   useVendors,
+  ViewPdfButton,
 } from '../../components/invoice'
 import {
   ButtonLink,
@@ -58,9 +59,12 @@ export default function AuditDetailPage() {
         }
         title={invoice.invoice_number || invoice.original_filename}
         actions={
-          <ButtonLink to="/auditor" variant="on-dark">
-            ‹ Audit trail
-          </ButtonLink>
+          <div className="flex flex-wrap items-start gap-3">
+            <ViewPdfButton variant="on-dark" load={() => auditorApi.pdf(invoice.invoice_id)} />
+            <ButtonLink to="/auditor" variant="on-dark">
+              ‹ Audit trail
+            </ButtonLink>
+          </div>
         }
       >
         {vendorName} · uploaded by clerk #{invoice.uploaded_by_clerk_id} on {formatDateTime(invoice.created_at)}

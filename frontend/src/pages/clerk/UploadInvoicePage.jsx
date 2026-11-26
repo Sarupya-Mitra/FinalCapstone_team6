@@ -46,7 +46,7 @@ export default function UploadInvoicePage() {
     try {
       invoice = await invoicesApi.upload(vendorId, file)
     } catch (err) {
-      setError(err.message)
+      setError({ message: err.message, duplicate: err.status === 409 ? err.detail : null })
       setStep(null)
       return
     }
@@ -75,7 +75,22 @@ export default function UploadInvoicePage() {
         <Section>
           <form onSubmit={onSubmit} className="grid lg:grid-cols-[1fr_360px] gap-10" noValidate>
             <div className="space-y-6">
-              {error && <Alert tone="error" title="Upload failed">{error}</Alert>}
+              {error && (
+                <Alert tone="error" title={error.duplicate ? 'Already uploaded' : 'Upload failed'}>
+                  {error.message}
+                  {error.duplicate?.uploaded_by_you && (
+                    <>
+                      {' '}
+                      <Link
+                        to={`/clerk/invoices/${error.duplicate.duplicate_invoice_id}`}
+                        className="text-primary font-bold"
+                      >
+                        Open invoice #{error.duplicate.duplicate_invoice_id}
+                      </Link>
+                    </>
+                  )}
+                </Alert>
+              )}
               {vendorsError && <Alert tone="error">Could not load vendors: {vendorsError.message}</Alert>}
 
               <Field

@@ -1,10 +1,11 @@
 
 from typing import Optional, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db.database import get_connection_db
 from app.routers.auth import require_role
+from app.services.pdf_storage import load_invoice_pdf_for_viewing, inline_pdf_response
 
 from app.schemas.auditor import (
     AuditorInvoiceResponse,
@@ -372,3 +373,30 @@ def get_auditor_invoice_details(
     finally:
         conn.close()
 
+
+@router.get("/invoices/{invoice_id}/pdf")
+def view_auditor_invoice_pdf(
+    invoice_id: int,
+    current_user: dict = Depends(require_role("auditor"))
+):
+    """Show the invoice PDF inline for auditable invoices."""
+    conn = get_connection_db()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 1 FROM invoices
+                WHERE invoice_id = %s
+                AND status IN ('pending_approval', 'approved', 'rejected')
+                """,
+                (invoice_id,),
+            )
+            if cursor.fetchone() is None:
+                raise HTTPException(status_code=404, detail="Auditable invoice not found")
+            result = load_invoice_pdf_for_viewing(cursor, invoice_id)
+    finally:
+        conn.close()
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Invoice PDF not found")
+    return inline_pdf_response(*result)

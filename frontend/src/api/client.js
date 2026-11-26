@@ -33,6 +33,7 @@ export function setUnauthorizedHandler(fn) {
 function messageFromDetail(detail, fallback) {
   if (!detail) return fallback
   if (typeof detail === 'string') return detail
+  if (typeof detail.message === 'string') return detail.message
   if (Array.isArray(detail)) {
     return detail
       .map((d) => {
@@ -87,4 +88,27 @@ export async function request(path, { method = 'GET', body, form, formData, quer
     throw new ApiError(res.status, messageFromDetail(data?.detail, fallback), data?.detail)
   }
   return data
+}
+
+// GET a binary resource (e.g. a PDF) with the auth header and return it as a Blob.
+export async function requestBlob(path) {
+  const headers = {}
+  const token = tokenStore.get()
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  let res
+  try {
+    res = await fetch(`${BASE}${path}`, { headers })
+  } catch {
+    throw new ApiError(0, 'Cannot reach the server. Is the backend running?')
+  }
+
+  if (!res.ok) {
+    let data = null
+    try { data = await res.json() } catch { /* not JSON */ }
+    if (res.status === 401 && token) onUnauthorized()
+    const fallback = res.status >= 500 ? 'Server error. Please try again.' : `Request failed (${res.status})`
+    throw new ApiError(res.status, messageFromDetail(data?.detail, fallback), data?.detail)
+  }
+  return res.blob()
 }

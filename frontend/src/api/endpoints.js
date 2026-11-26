@@ -1,6 +1,6 @@
 // One function per backend endpoint. If the backend contract changes,
 // this is the only file that should need updating.
-import { request } from './client'
+import { request, requestBlob } from './client'
 
 export const authApi = {
   // OAuth2 password flow: form-encoded username/password
@@ -30,6 +30,7 @@ export const invoicesApi = {
   review: (id) => request(`/invoices/${id}/review`),
   saveCorrections: (id, data) => request(`/invoices/${id}/review`, { method: 'PUT', body: data }),
   submit: (id) => request(`/invoices/${id}/submit`, { method: 'POST' }),
+  pdf: (id) => requestBlob(`/invoices/${id}/pdf`),
 }
 
 export const approvalsApi = {
@@ -40,10 +41,12 @@ export const approvalsApi = {
   history: (id) => request(`/approvals/${id}/history`),
   decide: (id, decision, note) =>
     request(`/approvals/${id}/decision`, { method: 'POST', body: { decision, note } }),
+  pdf: (id) => requestBlob(`/approvals/${id}/pdf`),
 }
 
 export const auditorApi = {
   // query: { status, limit, offset }
   list: (query) => request('/auditor/invoices', { query }),
   get: (id) => request(`/auditor/invoices/${id}`),
+  pdf: (id) => requestBlob(`/auditor/invoices/${id}/pdf`),
 }

@@ -7,10 +7,14 @@ Flow (called from POST /invoices):
 Stored PDFs must be <= MAX_STORED_PDF_BYTES (1 MB) after compression.
 """
 import hashlib
+from urllib.parse import quote
 from dataclasses import dataclass
 
 import pymupdf as fitz  # PyMuPDF
 from fastapi import HTTPException
+from fastapi.responses import Response
+
+from app.core.config import BASE_DIR, UPLOAD_DIR
 
 MAX_STORED_PDF_BYTES = 1024 * 1024  # 1 MB, mirrors models.MAX_STORED_PDF_BYTES / ck_invoice_files_size
 
@@ -137,3 +141,62 @@ def load_pdf(cursor, invoice_id: int) -> bytes | None:
     cursor.execute("SELECT file_data FROM invoice_files WHERE invoice_id = %s", (invoice_id,))
     row = cursor.fetchone()
     return bytes(row[0]) if row else None
+
+
+def load_invoice_pdf_for_viewing(cursor, invoice_id: int) -> tuple[bytes, str] | None:
+    """Return (pdf_bytes, filename) to show an invoice's PDF, or None if no file exists.
+
+    Tries, in order: the untouched original upload on disk (invoice_original_files),
+    the compressed copy in invoice_files, then a legacy on-disk invoices.file_path.
+    """
+    upload_root = UPLOAD_DIR.resolve()
+
+    def _read_upload(relative_path: str) -> bytes | None:
+        path = (BASE_DIR / relative_path).resolve()
+        if not path.is_relative_to(upload_root) or not path.is_file():
+            return None
+        return path.read_bytes()
+
+    cursor.execute(
+        "SELECT original_filename, file_path FROM invoices WHERE invoice_id = %s",
+        (invoice_id,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    filename, legacy_path = row
+    filename = filename or f"invoice-{invoice_id}.pdf"
+
+    cursor.execute(
+        "SELECT original_file_location FROM invoice_original_files WHERE invoice_id = %s",
+        (invoice_id,),
+    )
+    original = cursor.fetchone()
+    if original:
+        data = _read_upload(original[0])
+        if data is not None:
+            return data, filename
+
+    data = load_pdf(cursor, invoice_id)
+    if data is not None:
+        return data, filename
+
+    if legacy_path and not legacy_path.startswith("db://"):
+        data = _read_upload(legacy_path)
+        if data is not None:
+            return data, filename
+
+    return None
+
+
+def inline_pdf_response(pdf_bytes: bytes, filename: str):
+    """FastAPI Response that displays the PDF in the browser instead of downloading it."""
+    safe_ascii = "".join(c for c in filename if c.isascii() and c.isprintable() and c not in '"\\') or "invoice.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=\"{safe_ascii}\"; filename*=UTF-8''{quote(filename)}",
+            "Cache-Control": "private, no-store",
+        },
+    )

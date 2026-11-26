@@ -15,7 +15,8 @@ from app.schemas.invoice import (InvoiceResponse,InvoiceSubmit,InvoiceExtraction
 from app.db.database import get_connection_db
 from app.routers.auth import require_role
 from app.core.config import UPLOAD_DIR,MAX_FILE_SIZE,ALLOWED_EXTENSIONS,BASE_DIR
-from app.services.pdf_storage import compress_pdf, upload_pdf, load_pdf
+from app.services.pdf_storage import (compress_pdf, upload_pdf, load_pdf,
+                                      load_invoice_pdf_for_viewing, inline_pdf_response)
 from agent import (your_ai_agent, review_invoice_with_ai, AIAgentError,
                    AI_PROVIDER, AI_MODEL)
 
@@ -154,6 +155,29 @@ def get_invoice(
     finally:
         conn.close()
 
+@router.get("/{invoice_id}/pdf")
+def view_invoice_pdf(
+    invoice_id: int,
+    current_user: dict = Depends(require_role("clerk"))
+):
+    """Show the invoice PDF inline. Clerks can only view invoices they uploaded."""
+    conn = get_connection_db()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM invoices WHERE invoice_id = %s AND uploaded_by_clerk_id = %s",
+                (invoice_id, current_user["id"]),
+            )
+            if cursor.fetchone() is None:
+                raise HTTPException(status_code=404, detail="Invoice not found")
+            result = load_invoice_pdf_for_viewing(cursor, invoice_id)
+    finally:
+        conn.close()
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Invoice PDF not found")
+    return inline_pdf_response(*result)
+
 # Following two functions is to store the original pdf
 def save_original_pdf(raw: bytes) -> tuple[str, Path]:
     """
@@ -196,6 +220,49 @@ def upload_original_pdf(
             sha256
         )
     )
+
+def find_invoice_by_pdf_hash(cursor, sha256: str) -> dict | None:
+    """Return the invoice that already holds a PDF with this SHA-256, if any.
+
+    Checks both the original uploads and the compressed copies, since both
+    record the hash of the original file.
+    """
+    cursor.execute(
+        """
+        SELECT i.invoice_id, i.invoice_number, i.status,
+               i.original_filename, i.uploaded_by_clerk_id
+        FROM invoices i
+        WHERE i.invoice_id IN (
+            SELECT invoice_id FROM invoice_original_files WHERE sha256 = %s
+            UNION
+            SELECT invoice_id FROM invoice_files WHERE sha256 = %s
+        )
+        ORDER BY i.invoice_id
+        LIMIT 1
+        """,
+        (sha256, sha256)
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    columns = [d[0] for d in cursor.description]
+    return dict(zip(columns, row))
+
+
+def duplicate_pdf_error(existing: dict, clerk_id: int) -> HTTPException:
+    """409 response for a PDF that was already uploaded."""
+    return HTTPException(
+        status_code=409,
+        detail={
+            "message": (
+                f"This PDF has already been uploaded as invoice #{existing['invoice_id']}"
+                f" ({existing['original_filename']}, status: {existing['status']})."
+            ),
+            "duplicate_invoice_id": existing["invoice_id"],
+            "uploaded_by_you": existing["uploaded_by_clerk_id"] == clerk_id,
+        },
+    )
+
 
 @router.post("/", response_model=InvoiceResponse)
 def upload_invoice(
@@ -243,14 +310,26 @@ def upload_invoice(
 
         # Compress with PyMuPDF; raises 413 if it can't get under 1 MB
         compressed = compress_pdf(raw)
-        # Save the original PDF using a UUID filename
-        stored_filename, original_path = save_original_pdf(raw)
 
         clerk_id = current_user["id"]
         conn = get_connection_db()
+        original_path = None
         try:
-            original_path.write_bytes(raw)
             with conn.cursor() as cursor:
+                # Reject a byte-for-byte identical PDF that is already stored.
+                # The advisory lock serialises concurrent uploads of the same
+                # file, so two simultaneous uploads can't both pass the check.
+                cursor.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                    (compressed.sha256,)
+                )
+                duplicate = find_invoice_by_pdf_hash(cursor, compressed.sha256)
+                if duplicate is not None:
+                    raise duplicate_pdf_error(duplicate, clerk_id)
+
+                # Save the original PDF using a UUID filename
+                stored_filename, original_path = save_original_pdf(raw)
+
                 cursor.execute(
                     """
                     INSERT INTO invoices (
@@ -313,7 +392,8 @@ def upload_invoice(
         except Exception:
             conn.rollback()
             # Remove original file if database operations fail
-            original_path.unlink(missing_ok=True)
+            if original_path is not None:
+                original_path.unlink(missing_ok=True)
             raise
         finally:
             conn.close()
@@ -628,7 +708,28 @@ def extract_invoice(
             ## STEP 6: VALIDATE AI OUTPUT
             ## ----------------------------------
 
-            validated_result = validate_ai_output(ai_result)
+            try:
+                validated_result = validate_ai_output(ai_result)
+            except ValueError as e:
+                insert_extraction_run(
+                    cursor=cursor,
+                    invoice_id=invoice_id,
+                    extracted_json=None,
+                    status="failed",
+                    error_message=str(e)[:1000],
+                    provider=AI_PROVIDER,
+                    model_name=AI_MODEL,
+                    duration_ms=int((time.time() - start_time) * 1000)
+                )
+
+                conn.commit()
+
+                return {
+                    "message": "The AI returned data that could not be used. "
+                               "You can enter the invoice details manually.",
+                    "invoice_id": invoice_id,
+                    "status": "failed"
+                }
 
             # ----------------------------------
             # STEP 6.1: CHECK FOR DUPLICATE INVOICE
@@ -999,10 +1100,12 @@ def correct_invoice(
             # STEP 3: Validate invoice status
             # --------------------------------------------
 
-            if existing_invoice["status"] != "extracted":
+            # "uploaded" = AI extraction failed or was skipped; the clerk
+            # enters the data manually and the invoice moves to "extracted".
+            if existing_invoice["status"] not in ("uploaded", "extracted"):
                 raise HTTPException(
                     status_code=400,
-                    detail="Only extracted invoices can be corrected"
+                    detail="Only uploaded or extracted invoices can be edited"
                 )
 
             # --------------------------------------------
@@ -1050,6 +1153,7 @@ def correct_invoice(
                     subtotal = %s,
                     tax_amount = %s,
                     total_amount = %s,
+                    status = 'extracted',
                     updated_at = NOW()
                 WHERE invoice_id = %s
                 """,

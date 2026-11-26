@@ -10,6 +10,7 @@ import {
   VendorName,
   checkCounts,
   useVendors,
+  ViewPdfButton,
 } from '../../components/invoice'
 import {
   Alert,
@@ -71,9 +72,12 @@ export default function ApprovalDetailPage() {
         }
         title={invoice.invoice_number || invoice.original_filename}
         actions={
-          <ButtonLink to="/approver" variant="on-dark">
-            ‹ Back to queue
-          </ButtonLink>
+          <div className="flex flex-wrap items-start gap-3">
+            <ViewPdfButton variant="on-dark" load={() => approvalsApi.pdf(invoice.invoice_id)} />
+            <ButtonLink to="/approver" variant="on-dark">
+              ‹ Back to queue
+            </ButtonLink>
+          </div>
         }
       >
         {vendorName} · {formatMoney(invoice.total_amount, invoice.currency)}

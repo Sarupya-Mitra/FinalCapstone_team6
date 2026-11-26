@@ -5,7 +5,9 @@ import pymupdf
 import pytest
 from fastapi import HTTPException
 
-from app.services.pdf_storage import CompressedPdf, compress_pdf, load_pdf, upload_pdf
+from app.services import pdf_storage
+from app.services.pdf_storage import (CompressedPdf, compress_pdf, inline_pdf_response, load_invoice_pdf_for_viewing,
+                                      load_pdf, upload_pdf)
 from tests.conftest import FakeConnection, make_pdf
 
 
@@ -85,3 +87,53 @@ def test_load_pdf_returns_none_when_missing():
     conn = FakeConnection(results=[None])
     with conn.cursor() as cursor:
         assert load_pdf(cursor, 5) is None
+
+
+def _point_uploads_at(monkeypatch, tmp_path):
+    upload_dir = tmp_path / "uploads" / "invoices"
+    upload_dir.mkdir(parents=True)
+    monkeypatch.setattr(pdf_storage, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(pdf_storage, "UPLOAD_DIR", upload_dir)
+    return upload_dir
+
+
+def test_view_pdf_prefers_original_upload_on_disk(monkeypatch, tmp_path):
+    upload_dir = _point_uploads_at(monkeypatch, tmp_path)
+    (upload_dir / "abc.pdf").write_bytes(b"%PDF-original")
+    conn = FakeConnection(results=[("inv.pdf", "db://invoice_files/5"), ("uploads/invoices/abc.pdf",)])
+
+    with conn.cursor() as cursor:
+        assert load_invoice_pdf_for_viewing(cursor, 5) == (b"%PDF-original", "inv.pdf")
+
+
+def test_view_pdf_falls_back_to_compressed_copy(monkeypatch, tmp_path):
+    _point_uploads_at(monkeypatch, tmp_path)
+    conn = FakeConnection(results=[("inv.pdf", "db://invoice_files/5"), None, (memoryview(b"%PDF-small"),)])
+
+    with conn.cursor() as cursor:
+        assert load_invoice_pdf_for_viewing(cursor, 5) == (b"%PDF-small", "inv.pdf")
+
+
+def test_view_pdf_ignores_paths_outside_upload_dir(monkeypatch, tmp_path):
+    _point_uploads_at(monkeypatch, tmp_path)
+    (tmp_path / "secret.pdf").write_bytes(b"secret")
+    conn = FakeConnection(results=[("inv.pdf", "secret.pdf"), ("uploads/invoices/../../secret.pdf",), None])
+
+    with conn.cursor() as cursor:
+        assert load_invoice_pdf_for_viewing(cursor, 5) is None
+
+
+def test_view_pdf_returns_none_for_unknown_invoice():
+    conn = FakeConnection(results=[None])
+    with conn.cursor() as cursor:
+        assert load_invoice_pdf_for_viewing(cursor, 99) is None
+
+
+def test_inline_pdf_response_headers():
+    response = inline_pdf_response(b"%PDF", 'Facture "été".pdf')
+
+    assert response.media_type == "application/pdf"
+    disposition = response.headers["content-disposition"]
+    assert disposition.startswith('inline; filename="Facture t.pdf"')
+    assert "filename*=UTF-8''Facture%20%22%C3%A9t%C3%A9%22.pdf" in disposition
+

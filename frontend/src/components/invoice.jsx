@@ -12,7 +12,45 @@ import {
   humanize,
   toNumber,
 } from '../lib/format'
-import { EmptyState, KeyValue, StatusBadge, Table } from './ui'
+import { Button, EmptyState, KeyValue, StatusBadge, Table } from './ui'
+
+/* ---------------------------------------------------------------- View PDF */
+
+// Opens the invoice PDF in a new tab. The API needs the Bearer token, so we
+// fetch the file as a Blob and open an object URL instead of linking directly.
+// `load` is the role's endpoint, e.g. () => invoicesApi.pdf(id).
+export function ViewPdfButton({ load, variant = 'secondary', size, className }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function open() {
+    setError(null)
+    setLoading(true)
+    // Open the tab synchronously in the click handler so popup blockers allow it.
+    const tab = window.open('', '_blank')
+    try {
+      const blob = await load()
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+      if (tab) tab.location.href = url
+      else window.location.assign(url)
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      tab?.close()
+      setError(e.message || 'Could not open the PDF')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <span className="inline-flex flex-col items-end gap-1">
+      <Button type="button" variant={variant} size={size} className={className} loading={loading} onClick={open}>
+        View PDF
+      </Button>
+      {error && <span className="caption" role="alert">{error}</span>}
+    </span>
+  )
+}
 
 /* ---------------------------------------------------------------- Vendors lookup */
 
