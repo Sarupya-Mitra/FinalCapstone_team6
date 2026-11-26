@@ -1,0 +1,704 @@
+[
+  {
+    "file": "rand_001_missing_field.pdf",
+    "scenario": "missing_field",
+    "detail": "missing items",
+    "layout": "modern",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3258",
+      "invoice_date": "2026-10-21",
+      "due_date": "2026-11-20",
+      "currency": "INR",
+      "subtotal": "49.92",
+      "tax": "5.99",
+      "total": "55.91",
+      "items": [
+        {
+          "item_name": "Object Storage (GB)",
+          "quantity": 12,
+          "unit_price": "4.16",
+          "line_total": "49.92"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_002_arithmetic_mismatch.pdf",
+    "scenario": "arithmetic_mismatch",
+    "detail": "line total for 'Monitor' is 86060.11, expected 9 x 9617.79 = 86560.11",
+    "layout": "classic",
+    "expected": {
+      "vendor": "ABC Technologies",
+      "invoice_number": "ABC-6240",
+      "invoice_date": "2026-09-13",
+      "due_date": "2026-10-13",
+      "currency": "INR",
+      "subtotal": "106404.28",
+      "tax": "12768.51",
+      "total": "119172.79",
+      "items": [
+        {
+          "item_name": "Keyboard",
+          "quantity": 1,
+          "unit_price": "2004.35",
+          "line_total": "2004.35"
+        },
+        {
+          "item_name": "Monitor",
+          "quantity": 9,
+          "unit_price": "9617.79",
+          "line_total": "86560.11"
+        },
+        {
+          "item_name": "Mouse",
+          "quantity": 7,
+          "unit_price": "403.28",
+          "line_total": "2822.96"
+        },
+        {
+          "item_name": "USB-C Hub",
+          "quantity": 9,
+          "unit_price": "1668.54",
+          "line_total": "15016.86"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_003_invalid_date.pdf",
+    "scenario": "invalid_date",
+    "detail": "invoice date 2026-00-09 has an invalid month",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Greenleaf Catering",
+      "invoice_number": "GLC-2832",
+      "invoice_date": "2026-11-05",
+      "due_date": "2026-12-20",
+      "currency": "INR",
+      "subtotal": "385.70",
+      "tax": "46.28",
+      "total": "431.98",
+      "items": [
+        {
+          "item_name": "Tea/Coffee Service",
+          "quantity": 5,
+          "unit_price": "77.14",
+          "line_total": "385.70"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_004_arithmetic_mismatch.pdf",
+    "scenario": "arithmetic_mismatch",
+    "detail": "subtotal is 33400.21, sum of line totals is 33399.21",
+    "layout": "modern",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3261",
+      "invoice_date": "2026-08-14",
+      "due_date": "2026-09-28",
+      "currency": "USD",
+      "subtotal": "33399.21",
+      "tax": "0.00",
+      "total": "33399.21",
+      "items": [
+        {
+          "item_name": "Object Storage (GB)",
+          "quantity": 5,
+          "unit_price": "5.27",
+          "line_total": "26.35"
+        },
+        {
+          "item_name": "Cloud Compute (hours)",
+          "quantity": 12,
+          "unit_price": "30.81",
+          "line_total": "369.72"
+        },
+        {
+          "item_name": "Managed Database",
+          "quantity": 4,
+          "unit_price": "6400.35",
+          "line_total": "25601.40"
+        },
+        {
+          "item_name": "Support Plan",
+          "quantity": 1,
+          "unit_price": "7401.74",
+          "line_total": "7401.74"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_005_invalid_date.pdf",
+    "scenario": "invalid_date",
+    "detail": "invoice date 2027-09-04 is in the future",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Bright Office Supplies",
+      "invoice_number": "BRI-1920",
+      "invoice_date": "2026-10-10",
+      "due_date": "2026-11-09",
+      "currency": "INR",
+      "subtotal": "18071.78",
+      "tax": "3252.92",
+      "total": "21324.70",
+      "items": [
+        {
+          "item_name": "File Folder Pack",
+          "quantity": 4,
+          "unit_price": "394.11",
+          "line_total": "1576.44"
+        },
+        {
+          "item_name": "Printer Ink",
+          "quantity": 9,
+          "unit_price": "1406.44",
+          "line_total": "12657.96"
+        },
+        {
+          "item_name": "Whiteboard Markers",
+          "quantity": 5,
+          "unit_price": "281.55",
+          "line_total": "1407.75"
+        },
+        {
+          "item_name": "Paper Ream",
+          "quantity": 7,
+          "unit_price": "347.09",
+          "line_total": "2429.63"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_006_missing_field.pdf",
+    "scenario": "missing_field",
+    "detail": "missing tax",
+    "layout": "receipt",
+    "expected": {
+      "vendor": "Greenleaf Catering",
+      "invoice_number": "GLC-2833",
+      "invoice_date": "2026-09-10",
+      "due_date": "2026-09-25",
+      "currency": "USD",
+      "subtotal": "3903.24",
+      "tax": "702.58",
+      "total": "4605.82",
+      "items": [
+        {
+          "item_name": "Lunch Buffet (per plate)",
+          "quantity": 11,
+          "unit_price": "354.84",
+          "line_total": "3903.24"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_007_valid.pdf",
+    "scenario": "valid",
+    "detail": "all fields present and arithmetic correct",
+    "layout": "modern",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3266",
+      "invoice_date": "2026-09-22",
+      "due_date": "2026-10-22",
+      "currency": "INR",
+      "subtotal": "49021.25",
+      "tax": "5882.55",
+      "total": "54903.80",
+      "items": [
+        {
+          "item_name": "Cloud Compute (hours)",
+          "quantity": 11,
+          "unit_price": "21.93",
+          "line_total": "241.23"
+        },
+        {
+          "item_name": "Support Plan",
+          "quantity": 2,
+          "unit_price": "8077.57",
+          "line_total": "16155.14"
+        },
+        {
+          "item_name": "Managed Database",
+          "quantity": 7,
+          "unit_price": "4658.40",
+          "line_total": "32608.80"
+        },
+        {
+          "item_name": "Object Storage (GB)",
+          "quantity": 8,
+          "unit_price": "2.01",
+          "line_total": "16.08"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_008_valid.pdf",
+    "scenario": "valid",
+    "detail": "all fields present and arithmetic correct",
+    "layout": "table",
+    "expected": {
+      "vendor": "Greenleaf Catering",
+      "invoice_number": "GLC-2842",
+      "invoice_date": "2026-11-11",
+      "due_date": "2026-12-26",
+      "currency": "INR",
+      "subtotal": "7413.02",
+      "tax": "0.00",
+      "total": "7413.02",
+      "items": [
+        {
+          "item_name": "Lunch Buffet (per plate)",
+          "quantity": 3,
+          "unit_price": "597.57",
+          "line_total": "1792.71"
+        },
+        {
+          "item_name": "Event Setup",
+          "quantity": 1,
+          "unit_price": "5140.19",
+          "line_total": "5140.19"
+        },
+        {
+          "item_name": "Tea/Coffee Service",
+          "quantity": 6,
+          "unit_price": "80.02",
+          "line_total": "480.12"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_009_valid.pdf",
+    "scenario": "valid",
+    "detail": "all fields present and arithmetic correct",
+    "layout": "receipt",
+    "expected": {
+      "vendor": "ABC Technologies",
+      "invoice_number": "ABC-6244",
+      "invoice_date": "2026-07-30",
+      "due_date": "2026-08-29",
+      "currency": "INR",
+      "subtotal": "134921.88",
+      "tax": "6746.09",
+      "total": "141667.97",
+      "items": [
+        {
+          "item_name": "Keyboard",
+          "quantity": 9,
+          "unit_price": "1129.67",
+          "line_total": "10167.03"
+        },
+        {
+          "item_name": "Laptop Stand",
+          "quantity": 3,
+          "unit_price": "1845.92",
+          "line_total": "5537.76"
+        },
+        {
+          "item_name": "Monitor",
+          "quantity": 9,
+          "unit_price": "10462.96",
+          "line_total": "94166.64"
+        },
+        {
+          "item_name": "Mouse",
+          "quantity": 5,
+          "unit_price": "991.63",
+          "line_total": "4958.15"
+        },
+        {
+          "item_name": "USB-C Hub",
+          "quantity": 10,
+          "unit_price": "2009.23",
+          "line_total": "20092.30"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_010_duplicate_id.pdf",
+    "scenario": "duplicate_id",
+    "detail": "invoice number GLC-2833 already used by Greenleaf Catering",
+    "layout": "table",
+    "expected": {
+      "vendor": "Greenleaf Catering",
+      "invoice_number": "GLC-2833",
+      "invoice_date": "2026-11-25",
+      "due_date": "2026-12-10",
+      "currency": "INR",
+      "subtotal": "8179.48",
+      "tax": "408.97",
+      "total": "8588.45",
+      "items": [
+        {
+          "item_name": "Tea/Coffee Service",
+          "quantity": 4,
+          "unit_price": "58.40",
+          "line_total": "233.60"
+        },
+        {
+          "item_name": "Event Setup",
+          "quantity": 2,
+          "unit_price": "3772.54",
+          "line_total": "7545.08"
+        },
+        {
+          "item_name": "Lunch Buffet (per plate)",
+          "quantity": 1,
+          "unit_price": "400.80",
+          "line_total": "400.80"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_011_missing_field.pdf",
+    "scenario": "missing_field",
+    "detail": "missing invoice_date",
+    "layout": "classic",
+    "expected": {
+      "vendor": "ABC Technologies",
+      "invoice_number": "ABC-6245",
+      "invoice_date": "2026-10-25",
+      "due_date": "2026-12-24",
+      "currency": "USD",
+      "subtotal": "35213.06",
+      "tax": "6338.35",
+      "total": "41551.41",
+      "items": [
+        {
+          "item_name": "Keyboard",
+          "quantity": 11,
+          "unit_price": "2072.48",
+          "line_total": "22797.28"
+        },
+        {
+          "item_name": "Mouse",
+          "quantity": 4,
+          "unit_price": "1006.78",
+          "line_total": "4027.12"
+        },
+        {
+          "item_name": "USB-C Hub",
+          "quantity": 3,
+          "unit_price": "2796.22",
+          "line_total": "8388.66"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_012_duplicate_id.pdf",
+    "scenario": "duplicate_id",
+    "detail": "invoice number ABC-102 already used by ABC Technologies",
+    "layout": "table",
+    "expected": {
+      "vendor": "ABC Technologies",
+      "invoice_number": "ABC-102",
+      "invoice_date": "2026-08-15",
+      "due_date": "2026-08-30",
+      "currency": "INR",
+      "subtotal": "132749.82",
+      "tax": "15929.98",
+      "total": "148679.80",
+      "items": [
+        {
+          "item_name": "Monitor",
+          "quantity": 12,
+          "unit_price": "8136.05",
+          "line_total": "97632.60"
+        },
+        {
+          "item_name": "USB-C Hub",
+          "quantity": 11,
+          "unit_price": "2612.99",
+          "line_total": "28742.89"
+        },
+        {
+          "item_name": "Mouse",
+          "quantity": 11,
+          "unit_price": "428.99",
+          "line_total": "4718.89"
+        },
+        {
+          "item_name": "Laptop Stand",
+          "quantity": 1,
+          "unit_price": "1655.44",
+          "line_total": "1655.44"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_013_missing_field.pdf",
+    "scenario": "missing_field",
+    "detail": "missing tax",
+    "layout": "receipt",
+    "expected": {
+      "vendor": "Bright Office Supplies",
+      "invoice_number": "BRI-1929",
+      "invoice_date": "2026-11-14",
+      "due_date": "2026-12-14",
+      "currency": "INR",
+      "subtotal": "11021.25",
+      "tax": "0.00",
+      "total": "11021.25",
+      "items": [
+        {
+          "item_name": "Printer Ink",
+          "quantity": 8,
+          "unit_price": "1027.42",
+          "line_total": "8219.36"
+        },
+        {
+          "item_name": "File Folder Pack",
+          "quantity": 2,
+          "unit_price": "295.20",
+          "line_total": "590.40"
+        },
+        {
+          "item_name": "Paper Ream",
+          "quantity": 9,
+          "unit_price": "216.04",
+          "line_total": "1944.36"
+        },
+        {
+          "item_name": "Whiteboard Markers",
+          "quantity": 1,
+          "unit_price": "267.13",
+          "line_total": "267.13"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_014_invalid_date.pdf",
+    "scenario": "invalid_date",
+    "detail": "invoice date 2026-14-07 has an invalid month",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Acme Office Supplies",
+      "invoice_number": "INV-7078",
+      "invoice_date": "2026-08-28",
+      "due_date": "2026-10-27",
+      "currency": "INR",
+      "subtotal": "75090.73",
+      "tax": "13516.33",
+      "total": "88607.06",
+      "items": [
+        {
+          "item_name": "Desk Organizer",
+          "quantity": 1,
+          "unit_price": "895.73",
+          "line_total": "895.73"
+        },
+        {
+          "item_name": "Notebook Pack",
+          "quantity": 7,
+          "unit_price": "323.80",
+          "line_total": "2266.60"
+        },
+        {
+          "item_name": "Ergonomic Chair",
+          "quantity": 8,
+          "unit_price": "8991.05",
+          "line_total": "71928.40"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_015_valid.pdf",
+    "scenario": "valid",
+    "detail": "all fields present and arithmetic correct",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3275",
+      "invoice_date": "2026-09-22",
+      "due_date": "2026-10-22",
+      "currency": "INR",
+      "subtotal": "5525.78",
+      "tax": "994.64",
+      "total": "6520.42",
+      "items": [
+        {
+          "item_name": "Support Plan",
+          "quantity": 1,
+          "unit_price": "5525.78",
+          "line_total": "5525.78"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_016_duplicate_id.pdf",
+    "scenario": "duplicate_id",
+    "detail": "invoice number NCS-3258 already used by Nimbus Cloud Services",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3258",
+      "invoice_date": "2026-11-10",
+      "due_date": "2026-12-10",
+      "currency": "INR",
+      "subtotal": "193.93",
+      "tax": "34.91",
+      "total": "228.84",
+      "items": [
+        {
+          "item_name": "Cloud Compute (hours)",
+          "quantity": 11,
+          "unit_price": "17.63",
+          "line_total": "193.93"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_017_arithmetic_mismatch.pdf",
+    "scenario": "arithmetic_mismatch",
+    "detail": "subtotal is 41403.67, sum of line totals is 41303.67",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Acme Office Supplies",
+      "invoice_number": "INV-7087",
+      "invoice_date": "2026-10-16",
+      "due_date": "2026-10-31",
+      "currency": "INR",
+      "subtotal": "41303.67",
+      "tax": "7434.66",
+      "total": "48738.33",
+      "items": [
+        {
+          "item_name": "Ergonomic Chair",
+          "quantity": 4,
+          "unit_price": "8785.17",
+          "line_total": "35140.68"
+        },
+        {
+          "item_name": "Desk Organizer",
+          "quantity": 7,
+          "unit_price": "335.77",
+          "line_total": "2350.39"
+        },
+        {
+          "item_name": "Notebook Pack",
+          "quantity": 11,
+          "unit_price": "346.60",
+          "line_total": "3812.60"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_018_arithmetic_mismatch.pdf",
+    "scenario": "arithmetic_mismatch",
+    "detail": "line total for 'Object Storage (GB)' is 39.24, expected 8 x 4.78 = 38.24",
+    "layout": "table",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3279",
+      "invoice_date": "2026-09-01",
+      "due_date": "2026-10-16",
+      "currency": "INR",
+      "subtotal": "109675.06",
+      "tax": "0.00",
+      "total": "109675.06",
+      "items": [
+        {
+          "item_name": "Support Plan",
+          "quantity": 4,
+          "unit_price": "8874.77",
+          "line_total": "35499.08"
+        },
+        {
+          "item_name": "Cloud Compute (hours)",
+          "quantity": 5,
+          "unit_price": "14.46",
+          "line_total": "72.30"
+        },
+        {
+          "item_name": "Object Storage (GB)",
+          "quantity": 8,
+          "unit_price": "4.78",
+          "line_total": "38.24"
+        },
+        {
+          "item_name": "Managed Database",
+          "quantity": 12,
+          "unit_price": "6172.12",
+          "line_total": "74065.44"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_019_duplicate_id.pdf",
+    "scenario": "duplicate_id",
+    "detail": "invoice number NCS-3261 already used by Nimbus Cloud Services",
+    "layout": "receipt",
+    "expected": {
+      "vendor": "Nimbus Cloud Services",
+      "invoice_number": "NCS-3261",
+      "invoice_date": "2026-08-02",
+      "due_date": "2026-08-17",
+      "currency": "INR",
+      "subtotal": "158574.39",
+      "tax": "19028.93",
+      "total": "177603.32",
+      "items": [
+        {
+          "item_name": "Object Storage (GB)",
+          "quantity": 4,
+          "unit_price": "5.51",
+          "line_total": "22.04"
+        },
+        {
+          "item_name": "Support Plan",
+          "quantity": 11,
+          "unit_price": "7768.07",
+          "line_total": "85448.77"
+        },
+        {
+          "item_name": "Managed Database",
+          "quantity": 9,
+          "unit_price": "8122.62",
+          "line_total": "73103.58"
+        }
+      ]
+    }
+  },
+  {
+    "file": "rand_020_invalid_date.pdf",
+    "scenario": "invalid_date",
+    "detail": "invoice date 2026-12-30 is in the future",
+    "layout": "classic",
+    "expected": {
+      "vendor": "Greenleaf Catering",
+      "invoice_number": "GLC-2847",
+      "invoice_date": "2026-11-05",
+      "due_date": "2027-01-04",
+      "currency": "USD",
+      "subtotal": "2014.38",
+      "tax": "241.73",
+      "total": "2256.11",
+      "items": [
+        {
+          "item_name": "Lunch Buffet (per plate)",
+          "quantity": 6,
+          "unit_price": "335.73",
+          "line_total": "2014.38"
+        }
+      ]
+    }
+  }
+]
