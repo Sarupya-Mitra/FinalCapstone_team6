@@ -5,6 +5,7 @@ Tables (per the project spec, section 03):
   auditors (read-only role, no APIs yet),
   vendors, invoices, invoice_items, invoice_checks, extraction_runs,
   invoice_approvals, invoice_files (compressed PDF bytes, <= 1 MB),
+  invoice_original_files (location of the untouched uploaded PDF on disk),
   plus invoice_corrections for the audit trail of
   clerk edits (original AI extraction is kept in extraction_runs).
 """
@@ -185,6 +186,9 @@ class Invoice(Base):
     pdf_file: Mapped[Optional["InvoiceFile"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan", uselist=False
     )
+    original_file: Mapped[Optional["InvoiceOriginalFile"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan", uselist=False
+    )
 
 
 # Stored PDFs must be at most 1 MB after PyMuPDF compression.
@@ -223,6 +227,34 @@ class InvoiceFile(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     invoice: Mapped[Invoice] = relationship(back_populates="pdf_file")
+
+
+class InvoiceOriginalFile(Base):
+    """Where the original (uncompressed) uploaded PDF is saved on disk.
+
+    One row per invoice. original_file_location is relative to backend/,
+    e.g. "uploads/invoices/<uuid>.pdf".
+    """
+
+    __tablename__ = "invoice_original_files"
+    __table_args__ = (
+        CheckConstraint("original_size_bytes > 0", name="ck_original_file_size"),
+    )
+
+    original_file_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    invoice_id: Mapped[int] = mapped_column(
+        ForeignKey("invoices.invoice_id", ondelete="CASCADE", name="fk_original_invoice"),
+        nullable=False,
+        unique=True,
+    )
+    original_file_location: Mapped[str] = mapped_column(String(500), nullable=False)
+    original_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    invoice: Mapped[Invoice] = relationship(back_populates="original_file")
 
 
 class InvoiceItem(Base):

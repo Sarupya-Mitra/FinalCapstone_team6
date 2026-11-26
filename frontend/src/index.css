@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* Design tokens from DESIGN.md. Inter (700 / 400 / 300) stands in for the
+   licensed typeface. Every corner is square unless noted; no shadows. */
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --color-primary: #1c69d4;
+  --color-primary-active: #0653b6;
+  --color-primary-disabled: #d6d6d6;
+  --color-ink: #262626;
+  --color-body: #3c3c3c;
+  --color-body-strong: #1a1a1a;
+  --color-muted: #6b6b6b;
+  --color-muted-soft: #9a9a9a;
+  --color-hairline: #e6e6e6;
+  --color-hairline-strong: #cccccc;
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f7f7f7;
+  --color-surface-card: #fafafa;
+  --color-surface-strong: #ebebeb;
+  --color-surface-dark: #1a2129;
+  --color-surface-dark-elevated: #262e38;
+  --color-on-dark-soft: #bbbbbb;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #dc2626;
+
+  --text-display-xl: 64px;
+  --text-display-xl--line-height: 1.05;
+  --text-display-lg: 48px;
+  --text-display-lg--line-height: 1.1;
+  --text-display-md: 32px;
+  --text-display-md--line-height: 1.15;
+  --text-display-sm: 24px;
+  --text-display-sm--line-height: 1.25;
+  --text-title-lg: 20px;
+  --text-title-lg--line-height: 1.3;
+  --text-title-md: 18px;
+  --text-title-md--line-height: 1.4;
+  --text-title-sm: 16px;
+  --text-title-sm--line-height: 1.4;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 1.55;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 1.55;
+  --text-caption: 12px;
+  --text-caption--line-height: 1.4;
+  --text-label: 13px;
+  --text-label--line-height: 1.3;
+
+  --spacing-section: 80px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-canvas text-body font-light;
+  }
+  h1, h2, h3, h4 {
+    @apply text-ink font-bold;
+  }
+  button, [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  /* Uppercase letter-spaced label, as in "LEARN MORE". */
+  .label-upper {
+    @apply text-label font-bold uppercase tracking-[1.5px];
+  }
+  .caption {
+    @apply text-caption font-normal tracking-[0.5px];
+  }
+  /* Text input: 48px, hairline border, thickens to ink on focus. */
+  .field {
+    @apply h-12 w-full bg-canvas px-4 text-body-md font-light text-ink border border-hairline-strong outline-none transition-colors;
+    @apply focus:border-ink focus:shadow-[inset_0_0_0_1px_var(--color-ink)];
+    @apply disabled:bg-surface-soft disabled:text-muted;
+  }
+  .field-sm {
+    @apply h-10 px-3 text-body-sm;
+  }
+  .field-error {
+    @apply border-error;
+  }
+}

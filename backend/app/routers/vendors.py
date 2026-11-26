@@ -44,10 +44,12 @@ def get_vendor(
     try:
         with conn.cursor() as cursor:
             cursor.execute("""
-            Select * from vendors where vendor_id=%s
-            """,id)
+            SELECT vendor_id, vendor_name, contact_reference, tax_id,
+                   active, created_at, updated_at
+            FROM vendors WHERE vendor_id = %s
+            """, (id,))
+            row = cursor.fetchone()
 
-        row = cursor.fetchone()
         if not row:
             raise HTTPException(
                 status_code=404,

@@ -25,6 +25,7 @@ from models import (
     InvoiceCorrection,
     InvoiceFile,
     InvoiceItem,
+    InvoiceOriginalFile,  # noqa: F401  (table created by create_all; seed invoices have no originals on disk)
     Vendor,
 )
 

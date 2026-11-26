@@ -21,6 +21,15 @@ from agent import (your_ai_agent, review_invoice_with_ai, AIAgentError,
 # invoices.file_path value for PDFs stored in the invoice_files table
 DB_FILE_PREFIX = "db://invoice_files/"
 
+# backend/uploads/invoices--- For storing the original pdfs
+UPLOAD_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "uploads"
+    / "invoices"
+)
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 router = APIRouter(
     prefix="/invoices",
     tags=['Invoices']
@@ -144,6 +153,49 @@ def get_invoice(
     finally:
         conn.close()
 
+# Following two functions is to store the original pdf
+def save_original_pdf(raw: bytes) -> tuple[str, Path]:
+    """
+    Save the original PDF using a UUID filename.
+
+    Returns:
+        Stored filename and absolute file path.
+    """
+
+    filename = f"{uuid.uuid4()}.pdf"
+    file_path = UPLOAD_DIR / filename
+
+    file_path.write_bytes(raw)
+
+    return filename, file_path
+
+def upload_original_pdf(
+    cursor,
+    invoice_id: int,
+    filename: str,
+    original_size: int,
+    sha256: str
+):
+    relative_path = f"uploads/invoices/{filename}"
+
+    cursor.execute(
+        """
+        INSERT INTO invoice_original_files (
+            invoice_id,
+            original_file_location,
+            original_size_bytes,
+            sha256
+        )
+        VALUES (%s, %s, %s, %s)
+        """,
+        (
+            invoice_id,
+            relative_path,
+            original_size,
+            sha256
+        )
+    )
+
 @router.post("/", response_model=InvoiceResponse)
 def upload_invoice(
         vendor_id: int = Form(...),
@@ -190,10 +242,13 @@ def upload_invoice(
 
         # Compress with PyMuPDF; raises 413 if it can't get under 1 MB
         compressed = compress_pdf(raw)
+        # Save the original PDF using a UUID filename
+        stored_filename, original_path = save_original_pdf(raw)
 
         clerk_id = current_user["id"]
         conn = get_connection_db()
         try:
+            original_path.write_bytes(raw)
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
@@ -242,11 +297,22 @@ def upload_invoice(
                 # Store the compressed PDF in the same transaction
                 upload_pdf(cursor, invoice["invoice_id"], original_filename, compressed)
 
+                # Store original PDF location in invoice_original_files
+                upload_original_pdf(
+                    cursor,
+                    invoice["invoice_id"],
+                    stored_filename,
+                    len(raw),
+                    compressed.sha256
+                )
+
                 conn.commit()
 
                 return invoice
         except Exception:
             conn.rollback()
+            # Remove original file if database operations fail
+            original_path.unlink(missing_ok=True)
             raise
         finally:
             conn.close()
@@ -413,7 +479,9 @@ def extract_invoice(
                 SELECT
                     invoice_id,
                     file_path,
-                    status
+                    status,
+                    vendor_id,
+                    uploaded_by_clerk_id
                 FROM invoices
                 WHERE invoice_id = %s
                 """,
@@ -427,6 +495,18 @@ def extract_invoice(
                 )
             stored_file_path = invoice[1]
             invoice_status = invoice[2]
+            vendor_id = invoice[3]
+            uploaded_by_clerk_id = invoice[4]
+
+            # ----------------------------------
+            # STEP 1.1: Verify invoice ownership
+            # ----------------------------------
+
+            if uploaded_by_clerk_id != current_user["id"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You are not authorized to extract this invoice"
+                )
 
             # ----------------------------------
             # STEP 2: Check invoice status
@@ -550,6 +630,47 @@ def extract_invoice(
             validated_result = validate_ai_output(ai_result)
 
             # ----------------------------------
+            # STEP 6.1: CHECK FOR DUPLICATE INVOICE
+            # ----------------------------------
+
+            original_invoice_id = None
+
+            if validated_result.invoice_number:
+
+                cursor.execute(
+                    """
+                    SELECT invoice_id
+                    FROM invoices
+                    WHERE vendor_id = %s
+                      AND invoice_number = %s
+                      AND duplicate_of_invoice_id IS NULL
+                      AND invoice_id != %s
+                    LIMIT 1
+                    """,
+                    (
+                        vendor_id,
+                        validated_result.invoice_number,
+                        invoice_id
+                    )
+                )
+
+                existing_invoice = cursor.fetchone()
+
+                if existing_invoice:
+                    original_invoice_id = existing_invoice[0]
+
+                # Link to original invoice if duplicate.
+                # Otherwise, keep this invoice as an original.
+                cursor.execute(
+                    """
+                    UPDATE invoices
+                    SET duplicate_of_invoice_id = %s
+                    WHERE invoice_id = %s
+                    """,
+                    (original_invoice_id, invoice_id)
+                )
+
+            # ----------------------------------
             # STEP 7: UPDATE INVOICES TABLE
             # ----------------------------------
 
@@ -592,7 +713,11 @@ def extract_invoice(
             conn.commit()
 
             return {
-                "message": "Invoice extracted successfully",
+                "message": (
+                        "Duplicate invoice detected and linked to original invoice"
+                        if original_invoice_id
+                        else "Invoice extracted successfully"
+                ),
                 "invoice_id": invoice_id,
                 "status": "success",
                 "extracted_data": extracted_json
@@ -1565,10 +1690,10 @@ def submit_invoice(
                 for check in all_checks
             )
 
-            if has_failures:
-                new_status = "discrepancy"
-            else:
-                new_status = "pending_approval"
+            # if has_failures:
+            #     new_status = "discrepancy"
+            # else:
+            new_status = "pending_approval"
 
             # -----------------------------------------
             # STEP 10: Update invoice status
