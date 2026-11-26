@@ -139,6 +139,38 @@ This runs:
 2. Invoice totals by vendor, with pending counts
 3. Discrepancy list: failed duplicate, missing-field and arithmetic checks
 
+## Running the app (backend + frontend)
+
+```bash
+# Terminal 1: backend API on http://127.0.0.1:8000
+cd backend
+.venv\Scripts\activate
+uvicorn app.main:app --reload       # backend/.env must define JWT_SECRET_KEY
+
+# Terminal 2: frontend on http://localhost:5173
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend is **React + Vite + Tailwind CSS v4** and follows `DESIGN.md`. In development, Vite proxies every `/api/*` request to the backend, so the backend needs no CORS setup. If the backend runs on another address, set `VITE_BACKEND_URL` in `frontend/.env.local` (see `frontend/.env.example`). In development, the login page shows one-click demo accounts for the seeded users.
+
+| Role | Pages |
+|---|---|
+| Clerk | Invoice list with status/vendor filters · Upload a PDF (optionally running AI extraction straight away) · Review and correct the extracted data, with live arithmetic checks · Submit for approval · Vendor management |
+| Approver | Approval queue · Invoice detail with line items, validation checks, correction/extraction history and the AI summary · Approve or reject with a required note |
+| Auditor | All submitted invoices with status tabs and CSV export · Full trail per invoice: timeline, items, checks, corrections, raw AI runs, decisions |
+
+```
+frontend/src/
+  api/client.js        fetch wrapper: JWT header, FastAPI error parsing, 401 → logout
+  api/endpoints.js     one function per backend endpoint (update here when the API changes)
+  auth/                AuthContext (login, /auth/me, logout) and role route guards
+  components/ui.jsx    design-system primitives (Button, Hero, Table, Tabs, Modal, …)
+  components/invoice.jsx  shared invoice views (summary, items, checks, history timeline)
+  pages/clerk|approver|auditor/
+```
+
 ## Troubleshooting
 
 - **`Connection refused` on port 5432**: the PostgreSQL service is not running. Start it (see Prerequisites).
