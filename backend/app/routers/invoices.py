@@ -1071,7 +1071,9 @@ def correct_invoice(
                     subtotal,
                     tax_amount,
                     total_amount,
-                    status
+                    status,
+                    vendor_id,
+                    duplicate_of_invoice_id
                 FROM invoices
                 WHERE invoice_id = %s
                   AND uploaded_by_clerk_id = %s
@@ -1137,6 +1139,47 @@ def correct_invoice(
                         new_value=new_value,
                         clerk_id=clerk_id
                     )
+            # --------------------------------------------
+            # STEP 4.1: CHECK FOR DUPLICATE INVOICE
+            # --------------------------------------------
+
+            original_invoice_id = None
+
+            if correction.invoice_number:
+
+                cursor.execute(
+                    """
+                    SELECT invoice_id
+                    FROM invoices
+                    WHERE vendor_id = %s
+                      AND invoice_number = %s
+                      AND duplicate_of_invoice_id IS NULL
+                      AND invoice_id != %s
+                    LIMIT 1
+                    """,
+                    (
+                        existing_invoice["vendor_id"],
+                        correction.invoice_number,
+                        invoice_id
+                    )
+                )
+
+                existing_duplicate = cursor.fetchone()
+
+                if existing_duplicate:
+                    original_invoice_id = existing_duplicate[0]
+
+            # Link duplicate to original invoice.
+            # If no duplicate exists, keep duplicate_of_invoice_id NULL.
+
+            cursor.execute(
+                """
+                UPDATE invoices
+                SET duplicate_of_invoice_id = %s
+                WHERE invoice_id = %s
+                """,
+                (original_invoice_id, invoice_id)
+            )
 
             # --------------------------------------------
             # STEP 5: Update invoices table
@@ -1410,13 +1453,13 @@ def correct_invoice(
     except UniqueViolation:
         conn.rollback()
 
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "An invoice with this invoice number "
-                "already exists for this vendor."
-            )
-        )
+        # raise HTTPException(
+        #     status_code=409,
+        #     detail=(
+        #         "An invoice with this invoice number "
+        #         "already exists for this vendor."
+        #     )
+        # )
 
     except Exception as e:
         conn.rollback()
