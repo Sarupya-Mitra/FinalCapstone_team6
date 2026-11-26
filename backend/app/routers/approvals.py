@@ -471,10 +471,20 @@ def decide_invoice(
                     detail=f"Invoice cannot be decided. Current status: {status}"
                 )
 
-            if duplicate_of is not None:
+            # if duplicate_of is not None:
+            #     raise HTTPException(
+            #         status_code=409,
+            #         detail="Duplicate invoices cannot be approved or rejected"
+            #     )
+            decision = request.decision
+
+            # Duplicate invoices cannot be approved.
+            # However, approvers are allowed to reject them.
+
+            if duplicate_of is not None and decision == "approved":
                 raise HTTPException(
                     status_code=409,
-                    detail="Duplicate invoices cannot be approved or rejected"
+                    detail="Duplicate invoices cannot be approved. Please reject this invoice."
                 )
 
             # -----------------------------------------
