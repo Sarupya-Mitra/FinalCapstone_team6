@@ -8,6 +8,7 @@ import time,json
 from decimal import Decimal
 from psycopg2 import IntegrityError
 from psycopg2.errors import UniqueViolation
+from datetime import date
 
 from app.schemas.invoice import (InvoiceResponse,InvoiceSubmit,InvoiceExtractionResult,InvoiceReviewResponse,
                                  InvoiceCorrectionSubmit)
@@ -1345,7 +1346,7 @@ def run_deterministic_checks(invoice, items):
     required_fields = [
         "invoice_number",
         "invoice_date",
-        "due_date",
+        # "due_date",
         "subtotal",
         "tax_amount",
         "total_amount"
@@ -1453,6 +1454,27 @@ def run_deterministic_checks(invoice, items):
         "result": "pass",
         "details": "PDF text was successfully extracted."
     })
+
+    # -----------------------------------------
+    # CHECK 6: Due date verification
+    # -----------------------------------------
+
+    # due_date = invoice.get("due_date")
+    #
+    # due_date_expired = (
+    #     due_date is not None
+    #     and due_date < date.today()
+    # )
+    #
+    # checks.append({
+    #     "check_type": "due_date",
+    #     "result": "fail" if due_date_expired else "pass",
+    #     "details": (
+    #         f"Invoice due date {due_date} has already passed."
+    #         if due_date_expired
+    #         else "Due date is either missing or has not passed."
+    #     )
+    # })
 
     return checks
 

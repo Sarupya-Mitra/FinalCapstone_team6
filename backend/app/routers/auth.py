@@ -15,7 +15,7 @@ router = APIRouter(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Find the user in clerk and then approvers."""
+    """Find the user in clerk and then approvers and then auditors."""
     conn = get_connection_db()
     try:
         with conn.cursor() as cursor:
