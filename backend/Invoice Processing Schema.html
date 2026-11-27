@@ -1,0 +1,434 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Invoice Processing Schema</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: one reading column; diagram first, then relationships, then table-by-table field reference in a card grid */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --fg: #1b2230; --muted: #5b6577; --line: #dde1e8;
+  --accent: #1f5fbf; --accent-soft: #e6eefb;
+  --pk: #a35a00; --pk-soft: #fff1dc; --fk: #1f5fbf; --fk-soft: #e6eefb; --uq: #2c7a4b; --uq-soft: #e2f4e9;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11151c; --surface: #181e28; --fg: #e4e8ef; --muted: #98a2b3; --line: #2a3240;
+  --accent: #7aa7ec; --accent-soft: #1c2a40;
+  --pk: #f0b261; --pk-soft: #3a2a12; --fk: #7aa7ec; --fk-soft: #1c2a40; --uq: #6fcf97; --uq-soft: #163323;
+  color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11151c; --surface: #181e28; --fg: #e4e8ef; --muted: #98a2b3; --line: #2a3240;
+  --accent: #7aa7ec; --accent-soft: #1c2a40;
+  --pk: #f0b261; --pk-soft: #3a2a12; --fk: #7aa7ec; --fk-soft: #1c2a40; --uq: #6fcf97; --uq-soft: #163323;
+  color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.05rem; font-family: var(--font-mono); font-weight: 500; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+header { display: grid; gap: 10px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 0.875rem; }
+.meta code { font-family: var(--font-mono); color: var(--fg); }
+section { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.diagram { overflow-x: auto; padding: 20px; }
+.diagram pre.mermaid { margin: 0; min-width: 900px; background: transparent; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.85rem; color: var(--muted); align-items: center; }
+.tag { display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; padding: 1px 6px; border-radius: 4px; letter-spacing: 0.03em; }
+.tag.pk { color: var(--pk); background: var(--pk-soft); }
+.tag.fk { color: var(--fk); background: var(--fk-soft); }
+.tag.uq { color: var(--uq); background: var(--uq-soft); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+tbody tr:last-child td { border-bottom: 0; }
+td code, .mono { font-family: var(--font-mono); font-size: 0.82rem; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 16px; }
+.card { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+.card-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 4px; }
+.card-head p { color: var(--muted); font-size: 0.85rem; }
+.card table td:first-child { white-space: nowrap; }
+.card .notes { color: var(--muted); font-size: 0.8rem; }
+.group-label { margin-top: 8px; }
+.card-foot { padding: 10px 16px 14px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); display: grid; gap: 4px; }
+.card-foot code { font-family: var(--font-mono); font-size: 0.76rem; color: var(--fg); }
+.card:target { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; }
+.toc a { font-family: var(--font-mono); font-size: 0.8rem; text-decoration: none; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.toc a:hover { border-color: var(--accent); }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-family: var(--font-mono); font-size: 0.8rem; }
+.flow span.s { padding: 3px 8px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
+.flow span.arrow { color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Database design · PostgreSQL</span>
+    <h1>Invoice Processing Schema</h1>
+    <p>Entity-relationship design for the <code class="mono">invoice_processing</code> database: 13 tables covering user roles, vendors, invoices and their line items, AI extraction runs, automated checks, approvals and the audit trail of clerk corrections.</p>
+    <div class="meta">
+      <span>Source: <code>backend/models.py</code> (SQLAlchemy ORM)</span>
+      <span>13 tables · 12 foreign keys</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Entity-relationship diagram</h2>
+    <div class="legend">
+      <span><span class="tag pk">PK</span> primary key</span>
+      <span><span class="tag fk">FK</span> foreign key</span>
+      <span><span class="tag uq">UK</span> unique</span>
+      <span class="mono">||--o{</span> one to many
+      <span class="mono">||--o|</span> one to zero-or-one
+    </div>
+    <div class="panel diagram">
+<pre class="mermaid">
+erDiagram
+  vendors ||--o{ invoices : "supplies"
+  clerks ||--o{ invoices : "uploads"
+  invoices |o--o{ invoices : "duplicate of"
+  invoices ||--o| invoice_files : "compressed PDF"
+  invoices ||--o| invoice_original_files : "original PDF on disk"
+  invoices ||--o{ invoice_items : "contains"
+  invoices ||--o{ invoice_checks : "validated by"
+  invoices ||--o{ extraction_runs : "extracted by"
+  invoices ||--o{ invoice_approvals : "decided in"
+  approvers ||--o{ invoice_approvals : "makes"
+  invoices ||--o{ invoice_corrections : "corrected in"
+  clerks ||--o{ invoice_corrections : "makes"
+
+  clerks {
+    int c_id PK
+    varchar c_name
+    varchar c_email UK
+    varchar c_password "argon2 hash"
+    bool is_active
+    timestamptz created_at
+  }
+  approvers {
+    int app_id PK
+    varchar app_name
+    varchar app_email UK
+    varchar app_password "argon2 hash"
+    bool is_active
+    timestamptz created_at
+  }
+  auditors {
+    int aud_id PK
+    varchar aud_name
+    varchar aud_email UK
+    varchar aud_password "argon2 hash"
+    bool is_active
+    timestamptz created_at
+  }
+  vendors {
+    int vendor_id PK
+    varchar vendor_name UK
+    varchar contact_reference
+    varchar tax_id
+    bool active
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  invoices {
+    int invoice_id PK
+    int vendor_id FK
+    varchar invoice_number
+    date invoice_date
+    date due_date
+    varchar currency
+    numeric subtotal
+    numeric tax_amount
+    numeric total_amount
+    varchar file_path
+    varchar original_filename
+    bigint file_size_bytes
+    varchar status
+    bool is_verified
+    int duplicate_of_invoice_id FK
+    int uploaded_by_clerk_id FK
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  invoice_files {
+    int file_id PK
+    int invoice_id FK,UK
+    bytea file_data
+    varchar original_filename
+    varchar mime_type
+    bigint original_size_bytes
+    bigint stored_size_bytes
+    int page_count
+    varchar sha256
+    timestamptz uploaded_at
+  }
+  invoice_original_files {
+    int original_file_id PK
+    int invoice_id FK,UK
+    varchar original_file_location
+    bigint original_size_bytes
+    varchar sha256
+    timestamptz uploaded_at
+  }
+  invoice_items {
+    int item_id PK
+    int invoice_id FK
+    int line_no
+    varchar item_name
+    numeric quantity
+    numeric unit_price
+    numeric line_total
+    varchar source
+  }
+  invoice_checks {
+    int check_id PK
+    int invoice_id FK
+    varchar check_type
+    varchar result
+    text details
+    timestamptz checked_at
+  }
+  extraction_runs {
+    int run_id PK
+    int invoice_id FK
+    jsonb extracted_json
+    text ai_summary
+    varchar provider
+    varchar model_name
+    varchar status
+    text error_message
+    int duration_ms
+    timestamptz created_at
+  }
+  invoice_approvals {
+    int approval_id PK
+    int invoice_id FK
+    int approver_id FK
+    varchar decision
+    text note
+    timestamptz decided_at
+  }
+  invoice_corrections {
+    int correction_id PK
+    int invoice_id FK
+    varchar field_name
+    text old_value
+    text new_value
+    int clerk_id FK
+    timestamptz corrected_at
+  }
+</pre>
+    </div>
+    <p style="color:var(--muted);font-size:0.875rem">The diagram scrolls sideways on narrow screens. <code class="mono">auditors</code> has no foreign keys: it is a read-only login role that views the other tables.</p>
+  </section>
+
+  <section>
+    <h2>Relationships</h2>
+    <div class="panel scroll">
+      <table>
+        <thead><tr><th>Parent (one)</th><th>Child</th><th>Foreign key</th><th>Cardinality</th><th>On delete</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>vendors</code></td><td><code>invoices</code></td><td><code>vendor_id</code></td><td>1 : N</td><td>RESTRICT</td><td>Every invoice belongs to one vendor; a vendor with invoices can't be deleted.</td></tr>
+          <tr><td><code>clerks</code></td><td><code>invoices</code></td><td><code>uploaded_by_clerk_id</code></td><td>1 : N</td><td>RESTRICT</td><td>The clerk who uploaded the invoice.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoices</code></td><td><code>duplicate_of_invoice_id</code></td><td>0..1 : N (self)</td><td>SET NULL</td><td>A flagged duplicate points at the original invoice, which is never overwritten.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoice_files</code></td><td><code>invoice_id</code> (unique)</td><td>1 : 0..1</td><td>CASCADE</td><td>Compressed PDF bytes stored in the database (≤ 1 MB).</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoice_original_files</code></td><td><code>invoice_id</code> (unique)</td><td>1 : 0..1</td><td>CASCADE</td><td>Location of the untouched uploaded PDF on disk.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoice_items</code></td><td><code>invoice_id</code></td><td>1 : N</td><td>CASCADE</td><td>Line items, ordered by <code>line_no</code>.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoice_checks</code></td><td><code>invoice_id</code></td><td>1 : N</td><td>CASCADE</td><td>Results of automated validation checks.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>extraction_runs</code></td><td><code>invoice_id</code></td><td>1 : N</td><td>CASCADE</td><td>Immutable record of each AI extraction attempt.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoice_approvals</code></td><td><code>invoice_id</code></td><td>1 : N</td><td>RESTRICT</td><td>Append-only approver decisions; an invoice with decisions can't be deleted.</td></tr>
+          <tr><td><code>approvers</code></td><td><code>invoice_approvals</code></td><td><code>approver_id</code></td><td>1 : N</td><td>RESTRICT</td><td>The approver who made the decision.</td></tr>
+          <tr><td><code>invoices</code></td><td><code>invoice_corrections</code></td><td><code>invoice_id</code></td><td>1 : N</td><td>CASCADE</td><td>Audit trail of field edits.</td></tr>
+          <tr><td><code>clerks</code></td><td><code>invoice_corrections</code></td><td><code>clerk_id</code></td><td>1 : N</td><td>RESTRICT</td><td>The clerk who made the edit.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Invoice status lifecycle</h2>
+    <p style="color:var(--muted)">Enforced by the <code class="mono">ck_invoices_status</code> check constraint on <code class="mono">invoices.status</code>.</p>
+    <div class="flow">
+      <span class="s">uploaded</span><span class="arrow">→</span>
+      <span class="s">extracted</span><span class="arrow">→</span>
+      <span class="s">pending_approval</span><span class="arrow">or</span>
+      <span class="s">discrepancy</span><span class="arrow">→</span>
+      <span class="s">approved</span><span class="arrow">or</span>
+      <span class="s">rejected</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tables and fields</h2>
+    <nav class="toc" aria-label="Tables">
+      <a href="#t-clerks">clerks</a><a href="#t-approvers">approvers</a><a href="#t-auditors">auditors</a><a href="#t-vendors">vendors</a><a href="#t-invoices">invoices</a><a href="#t-invoice_files">invoice_files</a><a href="#t-invoice_original_files">invoice_original_files</a><a href="#t-invoice_items">invoice_items</a><a href="#t-invoice_checks">invoice_checks</a><a href="#t-extraction_runs">extraction_runs</a><a href="#t-invoice_approvals">invoice_approvals</a><a href="#t-invoice_corrections">invoice_corrections</a>
+    </nav>
+    <div class="card-grid" id="cards"></div>
+  </section>
+</div>
+
+<script>
+const T = [
+ { name: "clerks", desc: "Accounts-payable clerks. Upload invoices, verify and correct extracted data.", cols: [
+   ["c_id","INTEGER","pk","",""],["c_name","VARCHAR(100)","","not null",""],["c_email","VARCHAR(255)","uq","not null","login"],
+   ["c_password","VARCHAR(255)","","not null","argon2 hash"],["is_active","BOOLEAN","","not null","default true"],["created_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "approvers", desc: "Reviewers who approve or reject verified invoices.", cols: [
+   ["app_id","INTEGER","pk","",""],["app_name","VARCHAR(100)","","not null",""],["app_email","VARCHAR(255)","uq","not null","login"],
+   ["app_password","VARCHAR(255)","","not null","argon2 hash"],["is_active","BOOLEAN","","not null","default true"],["created_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "auditors", desc: "Read-only role. Traces extraction, corrections and decisions. No foreign keys.", cols: [
+   ["aud_id","INTEGER","pk","",""],["aud_name","VARCHAR(100)","","not null",""],["aud_email","VARCHAR(255)","uq","not null","login"],
+   ["aud_password","VARCHAR(255)","","not null","argon2 hash"],["is_active","BOOLEAN","","not null","default true"],["created_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "vendors", desc: "Suppliers that issue invoices.", cols: [
+   ["vendor_id","INTEGER","pk","",""],["vendor_name","VARCHAR(200)","uq","not null",""],["contact_reference","VARCHAR(200)","","",""],
+   ["tax_id","VARCHAR(50)","","",""],["active","BOOLEAN","","not null","default true"],["created_at","TIMESTAMPTZ","","","default now()"],["updated_at","TIMESTAMPTZ","","","updated on change"]]},
+ { name: "invoices", desc: "Core table. Holds the current (extracted or clerk-verified) values plus the source file reference.", cols: [
+   ["invoice_id","INTEGER","pk","",""],["vendor_id","INTEGER","fk","not null","→ vendors.vendor_id"],["invoice_number","VARCHAR(100)","","",""],
+   ["invoice_date","DATE","","",""],["due_date","DATE","","",""],["currency","VARCHAR(3)","","not null","default 'USD'"],
+   ["subtotal","NUMERIC(14,2)","","","≥ 0"],["tax_amount","NUMERIC(14,2)","","","≥ 0"],["total_amount","NUMERIC(14,2)","","","≥ 0"],
+   ["file_path","VARCHAR(500)","","not null",""],["original_filename","VARCHAR(255)","","not null",""],["file_size_bytes","BIGINT","","not null","> 0"],
+   ["status","VARCHAR(20)","","not null","default 'uploaded'; see lifecycle"],["is_verified","BOOLEAN","","not null","default false"],
+   ["duplicate_of_invoice_id","INTEGER","fk","","→ invoices.invoice_id (self)"],["uploaded_by_clerk_id","INTEGER","fk","not null","→ clerks.c_id"],
+   ["created_at","TIMESTAMPTZ","","","default now()"],["updated_at","TIMESTAMPTZ","","","updated on change"]],
+   foot: ["<code>uq_invoices_vendor_number</code>: unique (vendor_id, invoice_number) where duplicate_of_invoice_id IS NULL","<code>ix_invoices_status</code> on status"]},
+ { name: "invoice_files", desc: "Compressed PDF (PyMuPDF) stored as bytes. One row per invoice.", cols: [
+   ["file_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk uq","not null","→ invoices.invoice_id"],["file_data","BYTEA","","not null","compressed PDF"],
+   ["original_filename","VARCHAR(255)","","not null",""],["mime_type","VARCHAR(50)","","not null","must be application/pdf"],
+   ["original_size_bytes","BIGINT","","not null","> 0"],["stored_size_bytes","BIGINT","","not null","1 B to 1 MB, = length of file_data"],
+   ["page_count","INTEGER","","not null",""],["sha256","VARCHAR(64)","","not null","hash of original upload"],["uploaded_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "invoice_original_files", desc: "Where the uncompressed uploaded PDF is saved on disk. One row per invoice.", cols: [
+   ["original_file_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk uq","not null","→ invoices.invoice_id"],
+   ["original_file_location","VARCHAR(500)","","not null","e.g. uploads/invoices/&lt;uuid&gt;.pdf"],["original_size_bytes","BIGINT","","not null","> 0"],
+   ["sha256","VARCHAR(64)","","not null",""],["uploaded_at","TIMESTAMPTZ","","not null","default now()"]]},
+ { name: "invoice_items", desc: "Invoice line items. The app recomputes quantity × unit_price and logs mismatches in invoice_checks.", cols: [
+   ["item_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk","not null","→ invoices.invoice_id"],["line_no","INTEGER","","not null",""],
+   ["item_name","VARCHAR(300)","","not null",""],["quantity","NUMERIC(12,3)","","not null","> 0"],["unit_price","NUMERIC(14,2)","","not null","≥ 0"],
+   ["line_total","NUMERIC(14,2)","","","as stated on document"],["source","VARCHAR(10)","","not null","'ai' | 'manual', default 'ai'"]]},
+ { name: "invoice_checks", desc: "Automated validation results for an invoice.", cols: [
+   ["check_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk","not null","→ invoices.invoice_id"],
+   ["check_type","VARCHAR(30)","","not null","duplicate | line_total | invoice_total | missing_field | text_readable"],
+   ["result","VARCHAR(10)","","not null","pass | fail | warning"],["details","TEXT","","",""],["checked_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "extraction_runs", desc: "Immutable log of each AI (or failed) extraction attempt. Keeps the original AI output.", cols: [
+   ["run_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk","not null","→ invoices.invoice_id"],["extracted_json","JSONB","","","raw extracted fields"],
+   ["ai_summary","TEXT","","",""],["provider","VARCHAR(50)","","",""],["model_name","VARCHAR(100)","","",""],
+   ["status","VARCHAR(20)","","not null","success | partial | failed | no_text | timeout | rate_limited"],
+   ["error_message","TEXT","","",""],["duration_ms","INTEGER","","",""],["created_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "invoice_approvals", desc: "Append-only approver decisions. Never updated by extraction runs.", cols: [
+   ["approval_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk","not null","→ invoices.invoice_id"],["approver_id","INTEGER","fk","not null","→ approvers.app_id"],
+   ["decision","VARCHAR(10)","","not null","approved | rejected"],["note","TEXT","","not null","must not be blank"],["decided_at","TIMESTAMPTZ","","","default now()"]]},
+ { name: "invoice_corrections", desc: "Audit trail of clerk edits to extracted fields.", cols: [
+   ["correction_id","INTEGER","pk","",""],["invoice_id","INTEGER","fk","not null","→ invoices.invoice_id"],["field_name","VARCHAR(100)","","not null",""],
+   ["old_value","TEXT","","",""],["new_value","TEXT","","",""],["clerk_id","INTEGER","fk","not null","→ clerks.c_id"],["corrected_at","TIMESTAMPTZ","","","default now()"]]},
+];
+const tagHtml = k => k.split(" ").filter(Boolean).map(t => `<span class="tag ${t}">${t === "uq" ? "UK" : t.toUpperCase()}</span>`).join(" ");
+document.getElementById("cards").innerHTML = T.map(t => `
+  <article class="panel card" id="t-${t.name}">
+    <div class="card-head"><h3>${t.name}</h3><p>${t.desc}</p></div>
+    <div>
+      <div class="scroll"><table>
+        <thead><tr><th>Field</th><th>Type</th><th>Key</th><th>Null</th><th>Notes</th></tr></thead>
+        <tbody>${t.cols.map(c => `<tr><td><code>${c[0]}</code></td><td class="mono">${c[1]}</td><td>${tagHtml(c[2])}</td><td class="notes">${c[3] || (c[2].includes("pk") ? "not null" : "null")}</td><td class="notes">${c[4]}</td></tr>`).join("")}</tbody>
+      </table></div>
+      ${t.foot ? `<div class="card-foot">${t.foot.map(f => `<span>${f}</span>`).join("")}</div>` : ""}
+    </div>
+  </article>`).join("");
+</script>
+
+<!--claude-mermaid-runtime-begin:3847-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+function source(el){
+var out='';
+for(var n=el.firstChild;n;n=n.nextSibling){
+if(n.nodeType===3)out+=n.data;
+else if(n.nodeName==='BR')out+='<br>';
+else if(n.nodeType===1)out+=(out.slice(-1)==='<'&&n.textContent[0]==='>'?'<'+n.localName+'>':'')+source(n);
+}
+return out;
+}
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:source(pre),text:pre.textContent};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).catch(function(e){
+if(it.src===it.text)throw e;
+return mermaid.render(id,it.text);
+}).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>
